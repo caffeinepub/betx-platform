@@ -523,6 +523,76 @@ const STORAGE_KEYS = {
   DAILY_LOGIN: "betx_daily_login",
 };
 
+// ================================================================
+// ADMIN SEED - ensure admin account always exists
+// ================================================================
+const ADMIN_USER_ID = "admin-khanzyy-001";
+const ADMIN_USERNAME = "Khanzyy@";
+const ADMIN_PASSWORD = "Khan@home321";
+
+function ensureAdminAccount() {
+  try {
+    const storedUsers: User[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.USERS) || "[]",
+    );
+    const storedPasswords: Record<string, string> = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.PASSWORDS) || "{}",
+    );
+
+    const adminExists = storedUsers.find((u) => u.id === ADMIN_USER_ID);
+
+    if (!adminExists) {
+      const adminUser: User = {
+        id: ADMIN_USER_ID,
+        username: ADMIN_USERNAME,
+        displayName: "Admin",
+        balance: 999999,
+        isAdmin: true,
+        registeredAt: new Date().toISOString(),
+      };
+      const updatedUsers = [
+        adminUser,
+        ...storedUsers.filter(
+          (u) => u.username.toLowerCase() !== ADMIN_USERNAME.toLowerCase(),
+        ),
+      ];
+      const updatedPasswords = {
+        ...storedPasswords,
+        [ADMIN_USER_ID]: ADMIN_PASSWORD,
+      };
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updatedUsers));
+      localStorage.setItem(
+        STORAGE_KEYS.PASSWORDS,
+        JSON.stringify(updatedPasswords),
+      );
+    } else {
+      // Always keep password in sync
+      if (storedPasswords[ADMIN_USER_ID] !== ADMIN_PASSWORD) {
+        const updatedPasswords = {
+          ...storedPasswords,
+          [ADMIN_USER_ID]: ADMIN_PASSWORD,
+        };
+        localStorage.setItem(
+          STORAGE_KEYS.PASSWORDS,
+          JSON.stringify(updatedPasswords),
+        );
+      }
+      // Always keep isAdmin flag correct
+      if (!adminExists.isAdmin) {
+        const updatedUsers = storedUsers.map((u) =>
+          u.id === ADMIN_USER_ID ? { ...u, isAdmin: true } : u,
+        );
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updatedUsers));
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+// Run admin seed immediately at module load
+ensureAdminAccount();
+
 function loadFromStorage<T>(key: string, defaultValue: T): T {
   try {
     const item = localStorage.getItem(key);
