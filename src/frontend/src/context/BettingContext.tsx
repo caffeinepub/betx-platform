@@ -539,51 +539,50 @@ function ensureAdminAccount() {
       localStorage.getItem(STORAGE_KEYS.PASSWORDS) || "{}",
     );
 
-    const adminExists = storedUsers.find((u) => u.id === ADMIN_USER_ID);
+    // Always force-upsert the admin account with correct credentials
+    const adminUser: User = {
+      id: ADMIN_USER_ID,
+      username: ADMIN_USERNAME,
+      displayName: "Admin",
+      balance: 999999,
+      isAdmin: true,
+      registeredAt: new Date().toISOString(),
+    };
 
-    if (!adminExists) {
-      const adminUser: User = {
-        id: ADMIN_USER_ID,
-        username: ADMIN_USERNAME,
-        displayName: "Admin",
-        balance: 999999,
-        isAdmin: true,
-        registeredAt: new Date().toISOString(),
-      };
-      const updatedUsers = [
-        adminUser,
-        ...storedUsers.filter(
-          (u) => u.username.toLowerCase() !== ADMIN_USERNAME.toLowerCase(),
-        ),
-      ];
-      const updatedPasswords = {
-        ...storedPasswords,
-        [ADMIN_USER_ID]: ADMIN_PASSWORD,
-      };
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updatedUsers));
-      localStorage.setItem(
-        STORAGE_KEYS.PASSWORDS,
-        JSON.stringify(updatedPasswords),
+    // Remove any old admin entries (by id or by username), then add fresh
+    const filteredUsers = storedUsers.filter(
+      (u) =>
+        u.id !== ADMIN_USER_ID &&
+        u.username.toLowerCase() !== ADMIN_USERNAME.toLowerCase(),
+    );
+    const updatedUsers = [adminUser, ...filteredUsers];
+    const updatedPasswords = {
+      ...storedPasswords,
+      [ADMIN_USER_ID]: ADMIN_PASSWORD,
+    };
+
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updatedUsers));
+    localStorage.setItem(
+      STORAGE_KEYS.PASSWORDS,
+      JSON.stringify(updatedPasswords),
+    );
+
+    // If a user session is saved for admin, refresh it with correct data
+    try {
+      const savedUser = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.USER) || "null",
       );
-    } else {
-      // Always keep password in sync
-      if (storedPasswords[ADMIN_USER_ID] !== ADMIN_PASSWORD) {
-        const updatedPasswords = {
-          ...storedPasswords,
-          [ADMIN_USER_ID]: ADMIN_PASSWORD,
-        };
+      if (savedUser && savedUser.id === ADMIN_USER_ID) {
         localStorage.setItem(
-          STORAGE_KEYS.PASSWORDS,
-          JSON.stringify(updatedPasswords),
+          STORAGE_KEYS.USER,
+          JSON.stringify({
+            ...adminUser,
+            balance: savedUser.balance || 999999,
+          }),
         );
       }
-      // Always keep isAdmin flag correct
-      if (!adminExists.isAdmin) {
-        const updatedUsers = storedUsers.map((u) =>
-          u.id === ADMIN_USER_ID ? { ...u, isAdmin: true } : u,
-        );
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updatedUsers));
-      }
+    } catch {
+      // ignore
     }
   } catch {
     // ignore storage errors
@@ -683,28 +682,32 @@ export function BettingProvider({ children }: { children: ReactNode }) {
 
   // ---- AUTH ----
 
-  const login = useCallback(
-    (username: string, password: string): boolean => {
-      const foundUser = users.find(
-        (u) => u.username.toLowerCase() === username.toLowerCase(),
-      );
-      if (!foundUser) return false;
-      if (passwords[foundUser.id] !== password) return false;
-      // Ensure admin flag is correct on login
-      const loggedInUser = {
-        ...foundUser,
-        isAdmin: foundUser.username.toLowerCase() === "khanzyy@",
-      };
-      setUser(loggedInUser);
-      // Update stored user with correct isAdmin flag
-      setUsers((prev) =>
-        prev.map((u) => (u.id === loggedInUser.id ? loggedInUser : u)),
-      );
-      saveToStorage(STORAGE_KEYS.USER, loggedInUser);
-      return true;
-    },
-    [users, passwords],
-  );
+  const login = useCallback((username: string, password: string): boolean => {
+    // Re-read from storage to get the freshest data (including admin seed)
+    const freshUsers: User[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.USERS) || "[]",
+    );
+    const freshPasswords: Record<string, string> = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.PASSWORDS) || "{}",
+    );
+
+    const foundUser = freshUsers.find(
+      (u) => u.username.toLowerCase() === username.trim().toLowerCase(),
+    );
+    if (!foundUser) return false;
+    if (freshPasswords[foundUser.id] !== password) return false;
+    // Ensure admin flag is correct on login
+    const loggedInUser = {
+      ...foundUser,
+      isAdmin: foundUser.username.toLowerCase() === "khanzyy@",
+    };
+    setUser(loggedInUser);
+    setUsers(
+      freshUsers.map((u) => (u.id === loggedInUser.id ? loggedInUser : u)),
+    );
+    saveToStorage(STORAGE_KEYS.USER, loggedInUser);
+    return true;
+  }, []);
 
   const register = useCallback(
     (displayName: string, username: string, password: string): boolean => {

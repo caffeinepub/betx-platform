@@ -40,7 +40,7 @@ export function AuthModal({ open, onClose, initialMode }: AuthModalProps) {
     }
     setLoading(true);
     await new Promise((r) => setTimeout(r, 400));
-    const success = login(loginForm.username, loginForm.password);
+    const success = login(loginForm.username.trim(), loginForm.password);
     setLoading(false);
     if (success) {
       toast.success("Welcome back!");
