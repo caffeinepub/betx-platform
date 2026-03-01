@@ -732,6 +732,40 @@ export function BettingProvider({ children }: { children: ReactNode }) {
   // ---- AUTH ----
 
   const login = useCallback((username: string, password: string): boolean => {
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+
+    // ADMIN HARDCODED BYPASS -- always works regardless of localStorage state
+    if (
+      trimmedUsername.toLowerCase() === ADMIN_USERNAME.toLowerCase() &&
+      trimmedPassword === ADMIN_PASSWORD
+    ) {
+      // Re-ensure admin in storage, then load it
+      ensureAdminAccount();
+      const freshUsers: User[] = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.USERS) || "[]",
+      );
+      const adminUser =
+        freshUsers.find((u) => u.id === ADMIN_USER_ID) ||
+        ({
+          id: ADMIN_USER_ID,
+          username: ADMIN_USERNAME,
+          displayName: "Admin",
+          balance: 999999,
+          isAdmin: true,
+          registeredAt: new Date().toISOString(),
+        } as User);
+      const loggedInAdmin = { ...adminUser, isAdmin: true };
+      setUser(loggedInAdmin);
+      const updatedUsers = freshUsers.find((u) => u.id === ADMIN_USER_ID)
+        ? freshUsers.map((u) => (u.id === ADMIN_USER_ID ? loggedInAdmin : u))
+        : [loggedInAdmin, ...freshUsers];
+      setUsers(updatedUsers);
+      saveToStorage(STORAGE_KEYS.USER, loggedInAdmin);
+      saveToStorage(STORAGE_KEYS.USERS, updatedUsers);
+      return true;
+    }
+
     // Re-read from storage to get the freshest data (including admin seed)
     const freshUsers: User[] = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.USERS) || "[]",
@@ -741,14 +775,15 @@ export function BettingProvider({ children }: { children: ReactNode }) {
     );
 
     const foundUser = freshUsers.find(
-      (u) => u.username.toLowerCase() === username.trim().toLowerCase(),
+      (u) => u.username.toLowerCase() === trimmedUsername.toLowerCase(),
     );
     if (!foundUser) return false;
-    if (freshPasswords[foundUser.id] !== password) return false;
+    if (freshPasswords[foundUser.id] !== trimmedPassword) return false;
     // Ensure admin flag is correct on login
     const loggedInUser = {
       ...foundUser,
-      isAdmin: foundUser.username.toLowerCase() === "khanzyy@",
+      isAdmin:
+        foundUser.username.toLowerCase() === ADMIN_USERNAME.toLowerCase(),
     };
     setUser(loggedInUser);
     setUsers(
