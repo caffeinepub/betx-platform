@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -16,9 +17,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Activity,
   CheckCircle,
+  CreditCard,
   Database,
   PlusCircle,
   ShieldCheck,
@@ -30,11 +33,19 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
   type EventStatus,
+  type PaymentMethodConfig,
+  type PaymentSettings,
   type Sport,
   useBetting,
 } from "../context/BettingContext";
 
-type AdminTab = "overview" | "events" | "bets" | "transactions" | "users";
+type AdminTab =
+  | "overview"
+  | "events"
+  | "bets"
+  | "transactions"
+  | "users"
+  | "payments";
 
 export function AdminPage() {
   const {
@@ -48,6 +59,8 @@ export function AdminPage() {
     seedDemoData,
     updateUserBalance,
     setCurrentPage,
+    paymentSettings,
+    updatePaymentSettings,
   } = useBetting();
 
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
@@ -147,6 +160,7 @@ export function AdminPage() {
     { id: "bets", label: "Bets", icon: CheckCircle },
     { id: "transactions", label: "Transactions", icon: Wallet },
     { id: "users", label: "Users", icon: Users },
+    { id: "payments", label: "Payments", icon: CreditCard },
   ];
 
   return (
@@ -779,6 +793,14 @@ export function AdminPage() {
           )}
         </div>
       )}
+
+      {/* Payment Settings */}
+      {activeTab === "payments" && (
+        <PaymentSettingsPanel
+          paymentSettings={paymentSettings}
+          onSave={updatePaymentSettings}
+        />
+      )}
     </div>
   );
 }
@@ -797,7 +819,7 @@ function UserRow({
   onUpdateBalance: (userId: string, balance: number) => void;
 }) {
   const [adjustAmount, setAdjustAmount] = useState("");
-  const fmt = (n: number) => `$${n.toFixed(2)}`;
+  const fmt = (n: number) => `₹${n.toFixed(2)}`;
 
   const handleAdjust = () => {
     const amount = Number.parseFloat(adjustAmount);
@@ -846,5 +868,230 @@ function UserRow({
         </div>
       </TableCell>
     </TableRow>
+  );
+}
+
+// ================================================================
+// PAYMENT SETTINGS PANEL
+// ================================================================
+
+function PaymentSettingsPanel({
+  paymentSettings,
+  onSave,
+}: {
+  paymentSettings: PaymentSettings;
+  onSave: (settings: PaymentSettings) => void;
+}) {
+  const [localSettings, setLocalSettings] = useState<PaymentSettings>(() =>
+    JSON.parse(JSON.stringify(paymentSettings)),
+  );
+
+  const updateMethod = (
+    methodIdx: number,
+    field: keyof PaymentMethodConfig,
+    value: string | boolean,
+  ) => {
+    setLocalSettings((prev) => {
+      const updated = { ...prev };
+      updated.methods = prev.methods.map((m, i) => {
+        if (i !== methodIdx) return m;
+        return { ...m, [field]: value };
+      });
+      return updated;
+    });
+  };
+
+  const updateDetail = (
+    methodIdx: number,
+    detailIdx: number,
+    field: "label" | "value",
+    value: string,
+  ) => {
+    setLocalSettings((prev) => {
+      const updated = { ...prev };
+      updated.methods = prev.methods.map((m, i) => {
+        if (i !== methodIdx) return m;
+        const newDetails = m.details.map((d, di) => {
+          if (di !== detailIdx) return d;
+          return { ...d, [field]: value };
+        });
+        return { ...m, details: newDetails };
+      });
+      return updated;
+    });
+  };
+
+  const handleSave = () => {
+    onSave(localSettings);
+    toast.success("Payment settings saved!");
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CreditCard className="w-5 h-5 text-neon" />
+          <div>
+            <h2 className="font-display font-bold text-lg">Payment Settings</h2>
+            <p className="text-xs text-muted-foreground">
+              Configure payment methods shown to users during deposit/withdrawal
+            </p>
+          </div>
+        </div>
+        <Button
+          onClick={handleSave}
+          className="bg-neon text-panel-dark hover:bg-neon/90 font-bold rounded-sm"
+        >
+          Save Settings
+        </Button>
+      </div>
+
+      <div className="space-y-4">
+        {localSettings.methods.map((method, methodIdx) => (
+          <div
+            key={method.id}
+            className="bg-card border border-border rounded-sm overflow-hidden"
+          >
+            {/* Method header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/30">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">{method.icon}</span>
+                <div>
+                  <p className="text-sm font-bold">{method.label}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    ID: {method.id}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor={`method-active-${method.id}`}
+                  className="text-xs text-muted-foreground"
+                >
+                  {method.active ? "Active" : "Inactive"}
+                </Label>
+                <Switch
+                  id={`method-active-${method.id}`}
+                  checked={method.active}
+                  onCheckedChange={(checked) =>
+                    updateMethod(methodIdx, "active", checked)
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Method details */}
+            <div className="p-4 space-y-3">
+              {/* Label */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">
+                    Display Label
+                  </Label>
+                  <Input
+                    value={method.label}
+                    onChange={(e) =>
+                      updateMethod(methodIdx, "label", e.target.value)
+                    }
+                    className="h-8 text-xs bg-secondary border-border rounded-sm"
+                    placeholder="e.g. UPI / PayTM"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">
+                    Icon (emoji)
+                  </Label>
+                  <Input
+                    value={method.icon}
+                    onChange={(e) =>
+                      updateMethod(methodIdx, "icon", e.target.value)
+                    }
+                    className="h-8 text-xs bg-secondary border-border rounded-sm"
+                    placeholder="e.g. 📲"
+                  />
+                </div>
+              </div>
+
+              {/* Detail lines */}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Detail Lines
+                </p>
+                <div className="space-y-2">
+                  {method.details.map((detail, detailIdx) => (
+                    <div
+                      key={`${method.id}-detail-${detailIdx}`}
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+                    >
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground mb-0.5 block">
+                          Label
+                        </Label>
+                        <Input
+                          value={detail.label}
+                          onChange={(e) =>
+                            updateDetail(
+                              methodIdx,
+                              detailIdx,
+                              "label",
+                              e.target.value,
+                            )
+                          }
+                          className="h-7 text-xs bg-secondary border-border rounded-sm"
+                          placeholder="Field label"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground mb-0.5 block">
+                          Value
+                        </Label>
+                        <Input
+                          value={detail.value}
+                          onChange={(e) =>
+                            updateDetail(
+                              methodIdx,
+                              detailIdx,
+                              "value",
+                              e.target.value,
+                            )
+                          }
+                          className="h-7 text-xs bg-secondary border-border rounded-sm font-mono"
+                          placeholder="Field value"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Note */}
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">
+                  Note (shown to users)
+                </Label>
+                <Textarea
+                  value={method.note ?? ""}
+                  onChange={(e) =>
+                    updateMethod(methodIdx, "note", e.target.value)
+                  }
+                  className="text-xs bg-secondary border-border rounded-sm min-h-[60px] resize-none"
+                  placeholder="Optional note shown below payment details..."
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom save */}
+      <div className="flex justify-end pt-2 border-t border-border">
+        <Button
+          onClick={handleSave}
+          className="bg-neon text-panel-dark hover:bg-neon/90 font-bold rounded-sm"
+        >
+          Save All Payment Settings
+        </Button>
+      </div>
+    </div>
   );
 }

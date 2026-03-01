@@ -9,6 +9,7 @@ import {
   ChevronDown,
   LogOut,
   Menu,
+  QrCode,
   Receipt,
   ShieldCheck,
   Trophy,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { type VipTier, useBetting } from "../context/BettingContext";
+import { QRCodeModal } from "./QRCodeModal";
 
 interface NavbarProps {
   onOpenAuth: (mode: "login" | "register") => void;
@@ -41,6 +43,7 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
     getVipTier,
   } = useBetting();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const vipTier = user ? getVipTier(user.id) : null;
 
   const navLinks = [
@@ -48,6 +51,7 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
     { id: "casino", label: "Casino", icon: "🎰" },
     { id: "mybets", label: "My Bets", icon: "📋" },
     { id: "wallet", label: "Wallet", icon: "💰" },
+    { id: "promotions", label: "Promotions", icon: "🎁" },
     { id: "leaderboard", label: "Leaderboard", icon: "🏆" },
   ];
 
@@ -90,6 +94,15 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
 
         {/* Right side */}
         <div className="flex items-center gap-2">
+          {/* QR Code button */}
+          <button
+            type="button"
+            onClick={() => setQrOpen(true)}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 bg-secondary border border-border rounded-sm text-sm text-muted-foreground hover:text-neon hover:border-neon/50 transition-colors"
+            title="Website QR Code"
+          >
+            <QrCode className="w-4 h-4" />
+          </button>
           {user ? (
             <>
               {/* Bet slip button */}
@@ -222,6 +235,9 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
           </button>
         </div>
       </div>
+
+      {/* QR Code Modal */}
+      <QRCodeModal open={qrOpen} onClose={() => setQrOpen(false)} />
 
       {/* Mobile menu */}
       {mobileOpen && (

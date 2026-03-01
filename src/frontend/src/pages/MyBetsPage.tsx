@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -7,9 +7,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Clock, Receipt, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  Clock,
+  Download,
+  Receipt,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { type BetStatus, useBetting } from "../context/BettingContext";
 
 type TabFilter = "Open" | "Settled" | "All";
@@ -49,6 +56,36 @@ export function MyBetsPage() {
 
   const fmt = (n: number) => `$${n.toFixed(2)}`;
 
+  const downloadBetsCSV = () => {
+    const headers = [
+      "Event",
+      "Selection",
+      "Odds",
+      "Stake",
+      "Potential Win",
+      "Status",
+      "Placed At",
+    ];
+    const rows = bets.map((b) => [
+      `"${b.eventName}"`,
+      b.selectionName,
+      b.odds.toFixed(2),
+      b.stake.toFixed(2),
+      b.potentialWin.toFixed(2),
+      b.status,
+      new Date(b.placedAt).toLocaleString(),
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "betx-bets.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Bet history downloaded!");
+  };
+
   const statusBadge = (status: BetStatus) => {
     const map = {
       Won: "bg-win/15 text-win border-win/30",
@@ -81,11 +118,24 @@ export function MyBetsPage() {
   return (
     <div className="max-w-[1600px] mx-auto px-4 lg:px-6 py-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="font-display font-black text-2xl">My Bets</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Track your betting history
-        </p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="font-display font-black text-2xl">My Bets</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Track your betting history
+          </p>
+        </div>
+        {bets.length > 0 && (
+          <Button
+            onClick={downloadBetsCSV}
+            variant="outline"
+            size="sm"
+            className="border-neon/40 text-neon hover:bg-neon/10 rounded-sm"
+          >
+            <Download className="w-4 h-4 mr-1.5" />
+            Download CSV
+          </Button>
+        )}
       </div>
 
       {/* Stats */}

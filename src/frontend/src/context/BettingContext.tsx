@@ -14,6 +14,23 @@ import React, {
 export type Sport = "Football" | "Basketball" | "Tennis" | "Cricket" | "All";
 export type EventStatus = "Upcoming" | "Live" | "Finished";
 export type BetStatus = "Pending" | "Won" | "Lost" | "Cancelled";
+
+export interface PaymentMethodDetail {
+  label: string;
+  value: string;
+  copyable?: boolean;
+}
+export interface PaymentMethodConfig {
+  id: string;
+  label: string;
+  icon: string;
+  active: boolean;
+  details: PaymentMethodDetail[];
+  note?: string;
+}
+export interface PaymentSettings {
+  methods: PaymentMethodConfig[];
+}
 export type TransactionType =
   | "Deposit"
   | "Withdrawal"
@@ -87,6 +104,9 @@ export interface User {
   balance: number;
   isAdmin: boolean;
   registeredAt: string;
+  referredBy?: string;
+  referralCount?: number;
+  referralEarnings?: number;
 }
 
 export interface LeaderboardEntry {
@@ -155,6 +175,16 @@ interface BettingContextType {
 
   // VIP
   getVipTier: (userId: string) => VipTier;
+
+  // Payment Settings
+  paymentSettings: PaymentSettings;
+  updatePaymentSettings: (settings: PaymentSettings) => void;
+
+  // Referral & Bonuses
+  dailyLoginClaimed: Record<string, string>;
+  claimDailyBonus: () => { success: boolean; error?: string };
+  applyReferralCode: (code: string) => { success: boolean; error?: string };
+  getReferralCode: (userId: string) => string;
 
   // Navigation
   currentPage: string;
@@ -408,6 +438,80 @@ const INITIAL_LEADERBOARD: LeaderboardEntry[] = [
 // STORAGE HELPERS
 // ================================================================
 
+const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
+  methods: [
+    {
+      id: "USDT",
+      label: "USDT (TRC20)",
+      icon: "₮",
+      active: true,
+      details: [
+        { label: "Network", value: "TRC20 (Tron)" },
+        {
+          label: "Address",
+          value: "TXyz1234BetXabc5678defgh9012abcd",
+          copyable: true,
+        },
+        { label: "Min Deposit", value: "₹100" },
+      ],
+      note: "Send only USDT on TRC20 network. Other networks will result in loss of funds.",
+    },
+    {
+      id: "Bitcoin",
+      label: "Bitcoin (BTC)",
+      icon: "₿",
+      active: true,
+      details: [
+        { label: "Network", value: "Bitcoin (BTC)" },
+        {
+          label: "Address",
+          value: "bc1q9betxplatform1234xyz789abcdef",
+          copyable: true,
+        },
+        { label: "Min Deposit", value: "0.0005 BTC" },
+      ],
+      note: "Minimum 1 network confirmation required. Processing time: 10–30 min.",
+    },
+    {
+      id: "UPI",
+      label: "UPI / PayTM",
+      icon: "📲",
+      active: true,
+      details: [
+        { label: "UPI ID", value: "betx@paytm", copyable: true },
+        { label: "PayTM", value: "9876543210", copyable: true },
+        { label: "GPay / PhonePe", value: "betx@ybl", copyable: true },
+      ],
+      note: "After payment, screenshot and click Confirm Deposit below.",
+    },
+    {
+      id: "Bank",
+      label: "Bank Transfer",
+      icon: "🏦",
+      active: true,
+      details: [
+        { label: "Bank Name", value: "BetX Payments Pvt Ltd" },
+        { label: "Account No.", value: "1234567890123", copyable: true },
+        { label: "IFSC Code", value: "BETX0001234", copyable: true },
+        { label: "Account Type", value: "Current Account" },
+      ],
+      note: "Use NEFT/IMPS/RTGS. Add your username in remarks for instant credit.",
+    },
+    {
+      id: "Netbanking",
+      label: "Netbanking",
+      icon: "💻",
+      active: true,
+      details: [
+        { label: "Method", value: "NEFT / IMPS / RTGS" },
+        { label: "Account", value: "1234567890123" },
+        { label: "IFSC", value: "BETX0001234" },
+      ],
+      note: "Login to your bank portal and transfer to the above account. Processing: 15–60 min.",
+    },
+  ],
+};
+
 const STORAGE_KEYS = {
   USER: "betx_user",
   USERS: "betx_users",
@@ -415,6 +519,8 @@ const STORAGE_KEYS = {
   TRANSACTIONS: "betx_transactions",
   EVENTS: "betx_events",
   PASSWORDS: "betx_passwords",
+  PAYMENT_SETTINGS: "betx_payment_settings",
+  DAILY_LOGIN: "betx_daily_login",
 };
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -462,6 +568,17 @@ export function BettingProvider({ children }: { children: ReactNode }) {
   const [betSlip, setBetSlip] = useState<BetSlipItem[]>([]);
   const [betSlipOpen, setBetSlipOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState("home");
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>(() =>
+    loadFromStorage(STORAGE_KEYS.PAYMENT_SETTINGS, DEFAULT_PAYMENT_SETTINGS),
+  );
+  const [dailyLoginClaimed, setDailyLoginClaimed] = useState<
+    Record<string, string>
+  >(() => loadFromStorage(STORAGE_KEYS.DAILY_LOGIN, {}));
+
+  const updatePaymentSettings = useCallback((settings: PaymentSettings) => {
+    setPaymentSettings(settings);
+    saveToStorage(STORAGE_KEYS.PAYMENT_SETTINGS, settings);
+  }, []);
 
   // Sync user balance from users array
   useEffect(() => {
@@ -490,6 +607,9 @@ export function BettingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.PASSWORDS, passwords);
   }, [passwords]);
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.DAILY_LOGIN, dailyLoginClaimed);
+  }, [dailyLoginClaimed]);
 
   // ---- AUTH ----
 
@@ -834,6 +954,85 @@ export function BettingProvider({ children }: { children: ReactNode }) {
     [user, users],
   );
 
+  // ---- REFERRAL & BONUSES ----
+
+  const getReferralCode = useCallback(
+    (userId: string): string => {
+      const u = users.find((u) => u.id === userId);
+      if (!u) return "";
+      return `BETX-${u.username
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .toUpperCase()
+        .slice(0, 8)}`;
+    },
+    [users],
+  );
+
+  const claimDailyBonus = useCallback((): {
+    success: boolean;
+    error?: string;
+  } => {
+    if (!user) return { success: false, error: "Not logged in" };
+    const today = new Date().toDateString();
+    if (dailyLoginClaimed[user.id] === today)
+      return { success: false, error: "Already claimed today" };
+    const newBalance = user.balance + 50;
+    const updatedUser = { ...user, balance: newBalance };
+    setUser(updatedUser);
+    saveToStorage(STORAGE_KEYS.USER, updatedUser);
+    setUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+    const newClaimed = { ...dailyLoginClaimed, [user.id]: today };
+    setDailyLoginClaimed(newClaimed);
+    saveToStorage(STORAGE_KEYS.DAILY_LOGIN, newClaimed);
+    addTransaction("Deposit", 50, "Daily login bonus claimed", true);
+    return { success: true };
+  }, [user, dailyLoginClaimed, addTransaction]);
+
+  const applyReferralCode = useCallback(
+    (code: string): { success: boolean; error?: string } => {
+      if (!user) return { success: false, error: "Not logged in" };
+      if (user.referredBy)
+        return {
+          success: false,
+          error: "You have already used a referral code",
+        };
+      const codeUpper = code.trim().toUpperCase();
+      const referrer = users.find((u) => {
+        const rc = `BETX-${u.username
+          .replace(/[^a-zA-Z0-9]/g, "")
+          .toUpperCase()
+          .slice(0, 8)}`;
+        return rc === codeUpper && u.id !== user.id;
+      });
+      if (!referrer) return { success: false, error: "Invalid referral code" };
+      const referrerBalance = referrer.balance + 50;
+      const updatedReferrer = {
+        ...referrer,
+        balance: referrerBalance,
+        referralCount: (referrer.referralCount || 0) + 1,
+        referralEarnings: (referrer.referralEarnings || 0) + 50,
+      };
+      const updatedCurrentUser = { ...user, referredBy: referrer.username };
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === referrer.id) return updatedReferrer;
+          if (u.id === user.id) return updatedCurrentUser;
+          return u;
+        }),
+      );
+      setUser(updatedCurrentUser);
+      saveToStorage(STORAGE_KEYS.USER, updatedCurrentUser);
+      addTransaction(
+        "Deposit",
+        50,
+        `Referral bonus: @${user.username} joined using your code`,
+        true,
+      );
+      return { success: true };
+    },
+    [user, users, addTransaction],
+  );
+
   // ---- VIP TIER ----
 
   const getVipTier = useCallback(
@@ -904,6 +1103,12 @@ export function BettingProvider({ children }: { children: ReactNode }) {
         leaderboard,
         transferToUser,
         getVipTier,
+        paymentSettings,
+        updatePaymentSettings,
+        dailyLoginClaimed,
+        claimDailyBonus,
+        applyReferralCode,
+        getReferralCode,
         currentPage,
         setCurrentPage,
       }}

@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
-import { useState } from "react";
+import { Download, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { AuthModal } from "./components/AuthModal";
 import { BetSlip } from "./components/BetSlip";
 import { Footer } from "./components/Footer";
@@ -10,8 +11,69 @@ import { CasinoPage } from "./pages/CasinoPage";
 import { HomePage } from "./pages/HomePage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { MyBetsPage } from "./pages/MyBetsPage";
+import { PromotionsPage } from "./pages/PromotionsPage";
 import { SportsPage } from "./pages/SportsPage";
 import { WalletPage } from "./pages/WalletPage";
+
+// PWA install prompt
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+function PWAInstallBanner() {
+  const [installPrompt, setInstallPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  if (!installPrompt || dismissed) return null;
+
+  const handleInstall = async () => {
+    await installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") setInstallPrompt(null);
+    else setDismissed(true);
+  };
+
+  return (
+    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 z-50 bg-card border border-neon/40 rounded-sm p-4 shadow-2xl flex items-center gap-3">
+      <div className="w-10 h-10 rounded-sm bg-neon/10 flex items-center justify-center flex-shrink-0">
+        <Download className="w-5 h-5 text-neon" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-foreground">Install BetX App</p>
+        <p className="text-xs text-muted-foreground">
+          Add to home screen for quick access
+        </p>
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={handleInstall}
+          className="text-xs font-bold text-neon bg-neon/10 hover:bg-neon/20 px-3 py-1.5 rounded-sm transition-colors"
+        >
+          Install
+        </button>
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="p-1.5 hover:bg-secondary rounded-sm text-muted-foreground"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function AppInner() {
   const { currentPage } = useBetting();
@@ -35,6 +97,8 @@ function AppInner() {
         return <WalletPage />;
       case "casino":
         return <CasinoPage />;
+      case "promotions":
+        return <PromotionsPage onOpenAuth={openAuth} />;
       case "leaderboard":
         return <LeaderboardPage />;
       case "admin":
@@ -71,6 +135,8 @@ function AppInner() {
           },
         }}
       />
+
+      <PWAInstallBanner />
     </div>
   );
 }

@@ -13,86 +13,24 @@ import {
   ArrowLeftRight,
   ArrowUpRight,
   Check,
+  Clock,
   Copy,
+  Download,
   TrendingDown,
   TrendingUp,
   Trophy,
   Wallet,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { PaymentMethodConfig } from "../context/BettingContext";
 import { useBetting } from "../context/BettingContext";
 
-const DEPOSIT_PRESETS = [10, 25, 50, 100, 250, 500];
+const DEPOSIT_PRESETS = [100, 500, 1000, 2000, 5000, 10000];
 
-type PaymentMethod = "USDT" | "Bitcoin" | "UPI" | "Bank" | "Netbanking";
-
-const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: string }[] = [
-  { id: "USDT", label: "USDT (TRC20)", icon: "₮" },
-  { id: "Bitcoin", label: "Bitcoin (BTC)", icon: "₿" },
-  { id: "UPI", label: "UPI / PayTM", icon: "📲" },
-  { id: "Bank", label: "Bank Transfer", icon: "🏦" },
-  { id: "Netbanking", label: "Netbanking", icon: "💻" },
-];
-
-const PAYMENT_DETAILS: Record<
-  PaymentMethod,
-  {
-    lines: { label: string; value: string; copyable?: boolean }[];
-    note?: string;
-  }
-> = {
-  USDT: {
-    lines: [
-      { label: "Network", value: "TRC20 (Tron)" },
-      {
-        label: "Address",
-        value: "TXyz1234BetXabc5678defgh9012abcd",
-        copyable: true,
-      },
-      { label: "Min Deposit", value: "$10 USDT" },
-    ],
-    note: "Send only USDT on TRC20 network. Other networks will result in loss of funds.",
-  },
-  Bitcoin: {
-    lines: [
-      { label: "Network", value: "Bitcoin (BTC)" },
-      {
-        label: "Address",
-        value: "bc1q9betxplatform1234xyz789abcdef",
-        copyable: true,
-      },
-      { label: "Min Deposit", value: "0.0005 BTC" },
-    ],
-    note: "Minimum 1 network confirmation required. Processing time: 10–30 min.",
-  },
-  UPI: {
-    lines: [
-      { label: "UPI ID", value: "betx@paytm", copyable: true },
-      { label: "PayTM", value: "9876543210", copyable: true },
-      { label: "GPay / PhonePe", value: "betx@ybl", copyable: true },
-    ],
-    note: "After payment, screenshot and click Confirm Deposit below.",
-  },
-  Bank: {
-    lines: [
-      { label: "Bank Name", value: "BetX Payments Pvt Ltd" },
-      { label: "Account No.", value: "1234567890123", copyable: true },
-      { label: "IFSC Code", value: "BETX0001234", copyable: true },
-      { label: "Account Type", value: "Current Account" },
-    ],
-    note: "Use NEFT/IMPS/RTGS. Add your username in remarks for instant credit.",
-  },
-  Netbanking: {
-    lines: [
-      { label: "Method", value: "NEFT / IMPS / RTGS" },
-      { label: "Account", value: "1234567890123" },
-      { label: "IFSC", value: "BETX0001234" },
-    ],
-    note: "Login to your bank portal and transfer to the above account. Processing: 15–60 min.",
-  },
-};
+const MIN_DEPOSIT = 100;
+const MAX_DEPOSIT = 50000;
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -117,20 +55,84 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
+function DepositTimer({
+  depositMethod,
+}: {
+  depositMethod: string;
+}) {
+  const [seconds, setSeconds] = useState(60);
+  const [expired, setExpired] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Reset timer when method changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: depositMethod is a prop used to trigger timer reset
+  useEffect(() => {
+    setSeconds(60);
+    setExpired(false);
+
+    const id = setInterval(() => {
+      setSeconds((prev) => {
+        if (prev <= 1) {
+          setExpired(true);
+          setTimeout(() => {
+            setSeconds(60);
+            setExpired(false);
+          }, 2000);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    intervalRef.current = id;
+
+    return () => {
+      clearInterval(id);
+    };
+  }, [depositMethod]);
+
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  const timeStr = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  const urgency = seconds <= 15;
+
+  return (
+    <div
+      className={`flex items-center gap-2 px-3 py-2 rounded-sm border text-xs font-bold transition-colors ${
+        expired
+          ? "border-loss/50 bg-loss/10 text-loss"
+          : urgency
+            ? "border-gold/50 bg-gold/10 text-gold animate-pulse"
+            : "border-neon/30 bg-neon/5 text-neon"
+      }`}
+    >
+      <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+      {expired ? (
+        <span>Session expired. Refreshing...</span>
+      ) : (
+        <span>Session expires in: {timeStr}</span>
+      )}
+    </div>
+  );
+}
+
 function PaymentMethodSelector({
+  methods,
   selected,
   onSelect,
 }: {
-  selected: PaymentMethod;
-  onSelect: (m: PaymentMethod) => void;
+  methods: PaymentMethodConfig[];
+  selected: string;
+  onSelect: (id: string) => void;
 }) {
+  const activeMethod = methods.find((m) => m.id === selected);
+
   return (
     <div>
       <p className="text-xs text-muted-foreground font-medium mb-2">
         Payment Method
       </p>
       <div className="flex flex-wrap gap-1.5 mb-3">
-        {PAYMENT_METHODS.map((m) => (
+        {methods.map((m) => (
           <button
             type="button"
             key={m.id}
@@ -154,51 +156,73 @@ function PaymentMethodSelector({
           </button>
         ))}
       </div>
-      {/* Details card */}
-      <div className="bg-secondary border border-border rounded-sm p-3 mb-3">
-        <p className="text-[11px] font-bold text-muted-foreground mb-2 uppercase tracking-wider">
-          {PAYMENT_METHODS.find((m) => m.id === selected)?.label} Details
-        </p>
-        <div className="space-y-1.5">
-          {PAYMENT_DETAILS[selected].lines.map((line) => (
-            <div
-              key={line.label}
-              className="flex items-center justify-between gap-2"
-            >
-              <span className="text-xs text-muted-foreground">
-                {line.label}
-              </span>
-              <div className="flex items-center">
-                <span className="text-xs font-mono font-medium text-foreground truncate max-w-[160px]">
-                  {line.value}
-                </span>
-                {line.copyable && <CopyButton value={line.value} />}
-              </div>
-            </div>
-          ))}
-        </div>
-        {PAYMENT_DETAILS[selected].note && (
-          <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t border-border">
-            ⚠️ {PAYMENT_DETAILS[selected].note}
+      {activeMethod && (
+        <div className="bg-secondary border border-border rounded-sm p-3 mb-3">
+          <p className="text-[11px] font-bold text-muted-foreground mb-2 uppercase tracking-wider">
+            {activeMethod.label} Details
           </p>
-        )}
-      </div>
+          <div className="space-y-1.5">
+            {activeMethod.details.map((line) => (
+              <div
+                key={line.label}
+                className="flex items-center justify-between gap-2"
+              >
+                <span className="text-xs text-muted-foreground">
+                  {line.label}
+                </span>
+                <div className="flex items-center">
+                  <span className="text-xs font-mono font-medium text-foreground truncate max-w-[160px]">
+                    {line.value}
+                  </span>
+                  {line.copyable && <CopyButton value={line.value} />}
+                </div>
+              </div>
+            ))}
+          </div>
+          {activeMethod.note && (
+            <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t border-border">
+              ⚠️ {activeMethod.note}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 export function WalletPage() {
-  const { user, deposit, withdraw, transactions, transferToUser } =
-    useBetting();
+  const {
+    user,
+    deposit,
+    withdraw,
+    transactions,
+    transferToUser,
+    paymentSettings,
+  } = useBetting();
   const [depositAmount, setDepositAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [activeTab, setActiveTab] = useState<"deposit" | "withdraw" | "p2p">(
     "deposit",
   );
-  const [depositMethod, setDepositMethod] = useState<PaymentMethod>("USDT");
-  const [withdrawMethod, setWithdrawMethod] = useState<PaymentMethod>("USDT");
+  const [depositMethod, setDepositMethod] = useState<string>("");
+  const [withdrawMethod, setWithdrawMethod] = useState<string>("");
   const [p2pUsername, setP2pUsername] = useState("");
   const [p2pAmount, setP2pAmount] = useState("");
+
+  const activeMethods = paymentSettings.methods.filter((m) => m.active);
+
+  // Set default deposit/withdraw method when active methods are available
+  useEffect(() => {
+    if (activeMethods.length > 0 && !depositMethod) {
+      setDepositMethod(activeMethods[0].id);
+    }
+  }, [activeMethods, depositMethod]);
+
+  useEffect(() => {
+    if (activeMethods.length > 0 && !withdrawMethod) {
+      setWithdrawMethod(activeMethods[0].id);
+    }
+  }, [activeMethods, withdrawMethod]);
 
   if (!user) {
     return (
@@ -214,7 +238,7 @@ export function WalletPage() {
   }
 
   const fmt = (n: number) =>
-    `$${n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+    `₹${n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
 
   const handleDeposit = () => {
     const amount = Number.parseFloat(depositAmount);
@@ -222,9 +246,18 @@ export function WalletPage() {
       toast.error("Enter a valid amount");
       return;
     }
+    if (amount < MIN_DEPOSIT) {
+      toast.error(`Minimum deposit is ₹${MIN_DEPOSIT}`);
+      return;
+    }
+    if (amount > MAX_DEPOSIT) {
+      toast.error(`Maximum deposit is ₹${MAX_DEPOSIT.toLocaleString()}`);
+      return;
+    }
+    const method = activeMethods.find((m) => m.id === depositMethod);
     deposit(amount);
     toast.success(
-      `${fmt(amount)} added to your balance! (${PAYMENT_METHODS.find((m) => m.id === depositMethod)?.label})`,
+      `${fmt(amount)} added to your balance! (${method?.label ?? depositMethod})`,
     );
     setDepositAmount("");
   };
@@ -235,10 +268,11 @@ export function WalletPage() {
       toast.error("Enter a valid amount");
       return;
     }
+    const method = activeMethods.find((m) => m.id === withdrawMethod);
     const success = withdraw(amount);
     if (success) {
       toast.success(
-        `Withdrawal of ${fmt(amount)} requested via ${PAYMENT_METHODS.find((m) => m.id === withdrawMethod)?.label}`,
+        `Withdrawal of ${fmt(amount)} requested via ${method?.label ?? withdrawMethod}`,
       );
       setWithdrawAmount("");
     } else {
@@ -274,6 +308,34 @@ export function WalletPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const downloadTransactionsCSV = () => {
+    const headers = [
+      "Type",
+      "Description",
+      "Amount",
+      "Credit/Debit",
+      "Status",
+      "Date",
+    ];
+    const rows = transactions.map((t) => [
+      t.type,
+      `"${t.description}"`,
+      t.amount.toFixed(2),
+      t.isCredit ? "Credit" : "Debit",
+      t.status,
+      new Date(t.date).toLocaleString(),
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "betx-transactions.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Transaction history downloaded!");
   };
 
   const totalDeposited = transactions
@@ -424,11 +486,39 @@ export function WalletPage() {
             <div className="p-4">
               {activeTab === "deposit" && (
                 <div className="space-y-3">
+                  {/* Deposit limits info */}
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground bg-secondary/50 px-2.5 py-1.5 rounded-sm border border-border">
+                    <span>
+                      Min:{" "}
+                      <span className="text-neon font-bold">
+                        ₹{MIN_DEPOSIT.toLocaleString()}
+                      </span>
+                    </span>
+                    <span>
+                      Max:{" "}
+                      <span className="text-gold font-bold">
+                        ₹{MAX_DEPOSIT.toLocaleString()}
+                      </span>
+                    </span>
+                  </div>
+
                   {/* Payment method */}
-                  <PaymentMethodSelector
-                    selected={depositMethod}
-                    onSelect={setDepositMethod}
-                  />
+                  {activeMethods.length > 0 ? (
+                    <PaymentMethodSelector
+                      methods={activeMethods}
+                      selected={depositMethod}
+                      onSelect={setDepositMethod}
+                    />
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      No payment methods available
+                    </p>
+                  )}
+
+                  {/* 1-minute session timer */}
+                  {depositMethod && (
+                    <DepositTimer depositMethod={depositMethod} />
+                  )}
 
                   {/* Quick presets */}
                   <div className="grid grid-cols-3 gap-2">
@@ -443,13 +533,13 @@ export function WalletPage() {
                             : "border-border bg-secondary text-muted-foreground hover:border-neon/50 hover:text-foreground"
                         }`}
                       >
-                        ${preset}
+                        ₹{preset >= 1000 ? `${preset / 1000}k` : preset}
                       </button>
                     ))}
                   </div>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      $
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                      ₹
                     </span>
                     <Input
                       type="number"
@@ -467,7 +557,10 @@ export function WalletPage() {
                     className="w-full bg-neon text-panel-dark hover:bg-neon/90 font-bold rounded-sm"
                   >
                     <ArrowDownLeft className="w-4 h-4 mr-1.5" />
-                    Confirm Deposit {depositAmount ? `$${depositAmount}` : ""}
+                    Confirm Deposit{" "}
+                    {depositAmount
+                      ? `₹${Number(depositAmount).toLocaleString()}`
+                      : ""}
                   </Button>
                 </div>
               )}
@@ -475,10 +568,17 @@ export function WalletPage() {
               {activeTab === "withdraw" && (
                 <div className="space-y-3">
                   {/* Payment method */}
-                  <PaymentMethodSelector
-                    selected={withdrawMethod}
-                    onSelect={setWithdrawMethod}
-                  />
+                  {activeMethods.length > 0 ? (
+                    <PaymentMethodSelector
+                      methods={activeMethods}
+                      selected={withdrawMethod}
+                      onSelect={setWithdrawMethod}
+                    />
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      No payment methods available
+                    </p>
+                  )}
 
                   <p className="text-xs text-muted-foreground">
                     Available:{" "}
@@ -487,8 +587,8 @@ export function WalletPage() {
                     </span>
                   </p>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      $
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                      ₹
                     </span>
                     <Input
                       type="number"
@@ -555,8 +655,8 @@ export function WalletPage() {
                       Amount
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        $
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                        ₹
                       </span>
                       <Input
                         id="p2p-amount"
@@ -598,11 +698,24 @@ export function WalletPage() {
         {/* Right: Transaction History */}
         <div className="lg:col-span-2">
           <div className="bg-card border border-border rounded-sm">
-            <div className="p-4 border-b border-border">
-              <h2 className="font-display font-bold">Transaction History</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {transactions.length} transactions
-              </p>
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <div>
+                <h2 className="font-display font-bold">Transaction History</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {transactions.length} transactions
+                </p>
+              </div>
+              {transactions.length > 0 && (
+                <Button
+                  onClick={downloadTransactionsCSV}
+                  variant="outline"
+                  size="sm"
+                  className="border-neon/40 text-neon hover:bg-neon/10 rounded-sm"
+                >
+                  <Download className="w-4 h-4 mr-1.5" />
+                  Download CSV
+                </Button>
+              )}
             </div>
             {transactions.length === 0 ? (
               <div className="py-16 text-center">
