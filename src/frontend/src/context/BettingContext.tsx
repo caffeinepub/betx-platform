@@ -31,6 +31,24 @@ export interface PaymentMethodConfig {
 export interface PaymentSettings {
   methods: PaymentMethodConfig[];
 }
+
+export interface WebsiteSettings {
+  siteName: string;
+  siteTagline: string;
+  logoText: string;
+  announcementText: string;
+  announcementEnabled: boolean;
+  minDeposit: number;
+  maxDeposit: number;
+  minWithdrawal: number;
+  maxWithdrawal: number;
+  welcomeBonusAmount: number;
+  dailyBonusAmount: number;
+  referralBonusAmount: number;
+  supportEmail: string;
+  supportWhatsApp: string;
+  maintenanceMode: boolean;
+}
 export type TransactionType =
   | "Deposit"
   | "Withdrawal"
@@ -185,6 +203,10 @@ interface BettingContextType {
   claimDailyBonus: () => { success: boolean; error?: string };
   applyReferralCode: (code: string) => { success: boolean; error?: string };
   getReferralCode: (userId: string) => string;
+
+  // Website Settings
+  websiteSettings: WebsiteSettings;
+  updateWebsiteSettings: (settings: WebsiteSettings) => void;
 
   // Navigation
   currentPage: string;
@@ -512,15 +534,34 @@ const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   ],
 };
 
+const DEFAULT_WEBSITE_SETTINGS: WebsiteSettings = {
+  siteName: "RangBaazi",
+  siteTagline: "India's #1 Color Prediction Platform",
+  logoText: "RANGBAAZI",
+  announcementText: "",
+  announcementEnabled: false,
+  minDeposit: 100,
+  maxDeposit: 50000,
+  minWithdrawal: 200,
+  maxWithdrawal: 100000,
+  welcomeBonusAmount: 50,
+  dailyBonusAmount: 50,
+  referralBonusAmount: 50,
+  supportEmail: "support@betx.app",
+  supportWhatsApp: "",
+  maintenanceMode: false,
+};
+
 const STORAGE_KEYS = {
-  USER: "betx_user",
-  USERS: "betx_users",
-  BETS: "betx_bets",
-  TRANSACTIONS: "betx_transactions",
-  EVENTS: "betx_events",
-  PASSWORDS: "betx_passwords",
-  PAYMENT_SETTINGS: "betx_payment_settings",
-  DAILY_LOGIN: "betx_daily_login",
+  USER: "rangbaazi_user",
+  USERS: "rangbaazi_users",
+  BETS: "rangbaazi_bets",
+  TRANSACTIONS: "rangbaazi_transactions",
+  EVENTS: "rangbaazi_events",
+  PASSWORDS: "rangbaazi_passwords",
+  PAYMENT_SETTINGS: "rangbaazi_payment_settings",
+  DAILY_LOGIN: "rangbaazi_daily_login",
+  WEBSITE_SETTINGS: "rangbaazi_website_settings",
 };
 
 // ================================================================
@@ -643,10 +684,18 @@ export function BettingProvider({ children }: { children: ReactNode }) {
   const [dailyLoginClaimed, setDailyLoginClaimed] = useState<
     Record<string, string>
   >(() => loadFromStorage(STORAGE_KEYS.DAILY_LOGIN, {}));
+  const [websiteSettings, setWebsiteSettings] = useState<WebsiteSettings>(() =>
+    loadFromStorage(STORAGE_KEYS.WEBSITE_SETTINGS, DEFAULT_WEBSITE_SETTINGS),
+  );
 
   const updatePaymentSettings = useCallback((settings: PaymentSettings) => {
     setPaymentSettings(settings);
     saveToStorage(STORAGE_KEYS.PAYMENT_SETTINGS, settings);
+  }, []);
+
+  const updateWebsiteSettings = useCallback((settings: WebsiteSettings) => {
+    setWebsiteSettings(settings);
+    saveToStorage(STORAGE_KEYS.WEBSITE_SETTINGS, settings);
   }, []);
 
   // Sync user balance from users array
@@ -719,7 +768,7 @@ export function BettingProvider({ children }: { children: ReactNode }) {
         id: `user-${Date.now()}`,
         username,
         displayName,
-        balance: 1000,
+        balance: 50,
         isAdmin: username.toLowerCase() === "khanzyy@",
         registeredAt: new Date().toISOString(),
       };
@@ -729,12 +778,12 @@ export function BettingProvider({ children }: { children: ReactNode }) {
       setPasswords(updatedPasswords);
       setUser(newUser);
       saveToStorage(STORAGE_KEYS.USER, newUser);
-      // Welcome deposit
+      // Welcome bonus
       const welcomeTx: Transaction = {
         id: `tx-${Date.now()}`,
         type: "Deposit",
-        amount: 1000,
-        description: "Welcome bonus — Demo balance",
+        amount: 50,
+        description: "Welcome bonus — ₹50 on registration",
         date: new Date().toISOString(),
         status: "Completed",
         isCredit: true,
@@ -1042,7 +1091,7 @@ export function BettingProvider({ children }: { children: ReactNode }) {
     (userId: string): string => {
       const u = users.find((u) => u.id === userId);
       if (!u) return "";
-      return `BETX-${u.username
+      return `RANG-${u.username
         .replace(/[^a-zA-Z0-9]/g, "")
         .toUpperCase()
         .slice(0, 8)}`;
@@ -1080,7 +1129,7 @@ export function BettingProvider({ children }: { children: ReactNode }) {
         };
       const codeUpper = code.trim().toUpperCase();
       const referrer = users.find((u) => {
-        const rc = `BETX-${u.username
+        const rc = `RANG-${u.username
           .replace(/[^a-zA-Z0-9]/g, "")
           .toUpperCase()
           .slice(0, 8)}`;
@@ -1191,6 +1240,8 @@ export function BettingProvider({ children }: { children: ReactNode }) {
         claimDailyBonus,
         applyReferralCode,
         getReferralCode,
+        websiteSettings,
+        updateWebsiteSettings,
         currentPage,
         setCurrentPage,
       }}

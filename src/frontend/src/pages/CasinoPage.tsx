@@ -477,6 +477,7 @@ function DiceRoll() {
 
 type GameCategory =
   | "All"
+  | "Prediction"
   | "Crash"
   | "Slots"
   | "Table"
@@ -496,7 +497,23 @@ interface GameInfo {
   component: React.ComponentType;
 }
 
+// Win Go is handled as a special navigation link, not an inline component
+// We use a placeholder component that is never rendered directly
+function WinGoPlaceholder() {
+  return null;
+}
+
 const GAMES: GameInfo[] = [
+  {
+    id: "wingo",
+    name: "Win Go",
+    emoji: "🎯",
+    description: "Color prediction — Red, Green, Violet. Win every minute!",
+    category: "Prediction",
+    multRange: "2x – 9x",
+    isHot: true,
+    component: WinGoPlaceholder,
+  },
   {
     id: "aviator",
     name: "Aviator",
@@ -617,12 +634,13 @@ const GAMES: GameInfo[] = [
 
 const CATEGORIES: { id: GameCategory; label: string; emoji: string }[] = [
   { id: "All", label: "All Games", emoji: "🎮" },
+  { id: "Prediction", label: "Win Go", emoji: "🎯" },
   { id: "Cards", label: "Cards", emoji: "🃏" },
   { id: "Crash", label: "Crash", emoji: "✈️" },
   { id: "Slots", label: "Slots", emoji: "🎰" },
   { id: "Table", label: "Table", emoji: "🎡" },
   { id: "Fishing", label: "Fishing", emoji: "🎣" },
-  { id: "Other", label: "Other", emoji: "🎯" },
+  { id: "Other", label: "Other", emoji: "💫" },
 ];
 
 // ================================================================
@@ -662,6 +680,10 @@ export function CasinoPage() {
     : null;
 
   const openGame = (id: string) => {
+    if (id === "wingo") {
+      setCurrentPage("prediction");
+      return;
+    }
     setActiveGameId(id);
     setTimeout(() => {
       gameRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -823,8 +845,12 @@ export function CasinoPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
-            className={`group bg-card border rounded-sm overflow-hidden cursor-pointer transition-all hover:border-gold/40 ${
-              activeGameId === game.id ? "active-game-card" : "border-border"
+            className={`group bg-card border rounded-sm overflow-hidden cursor-pointer transition-all ${
+              game.id === "wingo"
+                ? "wingo-card-glow"
+                : activeGameId === game.id
+                  ? "active-game-card"
+                  : "border-border hover:border-gold/40"
             }`}
             onClick={() => openGame(game.id)}
           >
@@ -833,7 +859,9 @@ export function CasinoPage() {
               className="h-28 flex items-center justify-center relative overflow-hidden"
               style={{
                 background:
-                  "linear-gradient(135deg, oklch(0.12 0.015 264) 0%, oklch(0.16 0.02 264) 100%)",
+                  game.id === "wingo"
+                    ? "linear-gradient(135deg, oklch(0.65 0.22 22 / 20%) 0%, oklch(0.6 0.25 290 / 20%) 50%, oklch(0.75 0.2 145 / 20%) 100%)"
+                    : "linear-gradient(135deg, oklch(0.12 0.015 264) 0%, oklch(0.16 0.02 264) 100%)",
               }}
             >
               {/* Decorative background */}

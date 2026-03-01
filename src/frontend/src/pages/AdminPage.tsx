@@ -23,12 +23,14 @@ import {
   CheckCircle,
   CreditCard,
   Database,
+  Globe,
   PlusCircle,
   ShieldCheck,
   TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
+import type React from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -36,6 +38,7 @@ import {
   type PaymentMethodConfig,
   type PaymentSettings,
   type Sport,
+  type WebsiteSettings,
   useBetting,
 } from "../context/BettingContext";
 
@@ -45,7 +48,8 @@ type AdminTab =
   | "bets"
   | "transactions"
   | "users"
-  | "payments";
+  | "payments"
+  | "website";
 
 export function AdminPage() {
   const {
@@ -61,6 +65,8 @@ export function AdminPage() {
     setCurrentPage,
     paymentSettings,
     updatePaymentSettings,
+    websiteSettings,
+    updateWebsiteSettings,
   } = useBetting();
 
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
@@ -162,6 +168,7 @@ export function AdminPage() {
     { id: "transactions", label: "Transactions", icon: Wallet },
     { id: "users", label: "Users", icon: Users },
     { id: "payments", label: "Payments", icon: CreditCard },
+    { id: "website", label: "Website", icon: Globe },
   ];
 
   return (
@@ -802,6 +809,14 @@ export function AdminPage() {
           onSave={updatePaymentSettings}
         />
       )}
+
+      {/* Website Settings */}
+      {activeTab === "website" && (
+        <WebsiteSettingsPanel
+          websiteSettings={websiteSettings}
+          onSave={updateWebsiteSettings}
+        />
+      )}
     </div>
   );
 }
@@ -869,6 +884,294 @@ function UserRow({
         </div>
       </TableCell>
     </TableRow>
+  );
+}
+
+// ================================================================
+// WEBSITE SETTINGS PANEL
+// ================================================================
+
+function WebsiteSettingsPanel({
+  websiteSettings,
+  onSave,
+}: {
+  websiteSettings: WebsiteSettings;
+  onSave: (settings: WebsiteSettings) => void;
+}) {
+  const [local, setLocal] = useState<WebsiteSettings>(() =>
+    JSON.parse(JSON.stringify(websiteSettings)),
+  );
+
+  const set = (key: keyof WebsiteSettings, value: string | number | boolean) =>
+    setLocal((prev) => ({ ...prev, [key]: value }));
+
+  const handleSave = () => {
+    onSave(local);
+    toast.success("Website settings saved!");
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Globe className="w-5 h-5 text-neon" />
+          <div>
+            <h2 className="font-display font-bold text-lg">Website Settings</h2>
+            <p className="text-xs text-muted-foreground">
+              Manage site identity, limits, bonuses, and support details
+            </p>
+          </div>
+        </div>
+        <Button
+          onClick={handleSave}
+          className="bg-neon text-panel-dark hover:bg-neon/90 font-bold rounded-sm"
+        >
+          Save Settings
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Site Identity */}
+        <div className="bg-card border border-border rounded-sm p-5 space-y-4">
+          <h3 className="font-bold text-sm flex items-center gap-2">
+            <Globe className="w-4 h-4 text-neon" />
+            Site Identity
+          </h3>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Site Name
+              </Label>
+              <Input
+                value={local.siteName}
+                onChange={(e) => set("siteName", e.target.value)}
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+                placeholder="e.g. RangBaazi"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Tagline
+              </Label>
+              <Input
+                value={local.siteTagline}
+                onChange={(e) => set("siteTagline", e.target.value)}
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+                placeholder="e.g. India's Premier Betting Platform"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Logo Text
+              </Label>
+              <Input
+                value={local.logoText}
+                onChange={(e) => set("logoText", e.target.value)}
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+                placeholder="e.g. RANGBAAZI"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Support Email
+              </Label>
+              <Input
+                value={local.supportEmail}
+                onChange={(e) => set("supportEmail", e.target.value)}
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+                placeholder="support@betx.app"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Support WhatsApp Number
+              </Label>
+              <Input
+                value={local.supportWhatsApp}
+                onChange={(e) => set("supportWhatsApp", e.target.value)}
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+                placeholder="e.g. 9876543210"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Deposit & Withdrawal Limits */}
+        <div className="bg-card border border-border rounded-sm p-5 space-y-4">
+          <h3 className="font-bold text-sm flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-gold" />
+            Deposit & Withdrawal Limits
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Min Deposit (₹)
+              </Label>
+              <Input
+                type="number"
+                value={local.minDeposit}
+                onChange={(e) =>
+                  set("minDeposit", Number.parseInt(e.target.value) || 0)
+                }
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Max Deposit (₹)
+              </Label>
+              <Input
+                type="number"
+                value={local.maxDeposit}
+                onChange={(e) =>
+                  set("maxDeposit", Number.parseInt(e.target.value) || 0)
+                }
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Min Withdrawal (₹)
+              </Label>
+              <Input
+                type="number"
+                value={local.minWithdrawal}
+                onChange={(e) =>
+                  set("minWithdrawal", Number.parseInt(e.target.value) || 0)
+                }
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Max Withdrawal (₹)
+              </Label>
+              <Input
+                type="number"
+                value={local.maxWithdrawal}
+                onChange={(e) =>
+                  set("maxWithdrawal", Number.parseInt(e.target.value) || 0)
+                }
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Bonus Settings */}
+        <div className="bg-card border border-border rounded-sm p-5 space-y-4">
+          <h3 className="font-bold text-sm flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-neon" />
+            Bonus Amounts
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Welcome Bonus (₹)
+              </Label>
+              <Input
+                type="number"
+                value={local.welcomeBonusAmount}
+                onChange={(e) =>
+                  set(
+                    "welcomeBonusAmount",
+                    Number.parseInt(e.target.value) || 0,
+                  )
+                }
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Daily Bonus (₹)
+              </Label>
+              <Input
+                type="number"
+                value={local.dailyBonusAmount}
+                onChange={(e) =>
+                  set("dailyBonusAmount", Number.parseInt(e.target.value) || 0)
+                }
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Referral Bonus (₹)
+              </Label>
+              <Input
+                type="number"
+                value={local.referralBonusAmount}
+                onChange={(e) =>
+                  set(
+                    "referralBonusAmount",
+                    Number.parseInt(e.target.value) || 0,
+                  )
+                }
+                className="h-8 text-xs bg-secondary border-border rounded-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Announcement Banner */}
+        <div className="bg-card border border-border rounded-sm p-5 space-y-4">
+          <h3 className="font-bold text-sm flex items-center gap-2">
+            <Activity className="w-4 h-4 text-live" />
+            Announcement Banner
+          </h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">
+                Show announcement to all users
+              </Label>
+              <Switch
+                checked={local.announcementEnabled}
+                onCheckedChange={(checked) =>
+                  set("announcementEnabled", checked)
+                }
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Announcement Text
+              </Label>
+              <Textarea
+                value={local.announcementText}
+                onChange={(e) => set("announcementText", e.target.value)}
+                className="text-xs bg-secondary border-border rounded-sm min-h-[70px] resize-none"
+                placeholder="e.g. New IPL season odds are live! Deposit now and get 100% bonus."
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Maintenance Mode */}
+        <div className="bg-card border border-border rounded-sm p-5 space-y-4 lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-sm text-loss">Maintenance Mode</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                When enabled, users will see a maintenance message. Admin can
+                still access the panel.
+              </p>
+            </div>
+            <Switch
+              checked={local.maintenanceMode}
+              onCheckedChange={(checked) => set("maintenanceMode", checked)}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-2 border-t border-border">
+        <Button
+          onClick={handleSave}
+          className="bg-neon text-panel-dark hover:bg-neon/90 font-bold rounded-sm"
+        >
+          Save All Website Settings
+        </Button>
+      </div>
+    </div>
   );
 }
 

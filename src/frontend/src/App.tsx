@@ -11,6 +11,7 @@ import { CasinoPage } from "./pages/CasinoPage";
 import { HomePage } from "./pages/HomePage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { MyBetsPage } from "./pages/MyBetsPage";
+import { PredictionPage } from "./pages/PredictionPage";
 import { PromotionsPage } from "./pages/PromotionsPage";
 import { SportsPage } from "./pages/SportsPage";
 import { WalletPage } from "./pages/WalletPage";
@@ -50,7 +51,9 @@ function PWAInstallBanner() {
         <Download className="w-5 h-5 text-neon" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-foreground">Install BetX App</p>
+        <p className="text-sm font-bold text-foreground">
+          Install RangBaazi App
+        </p>
         <p className="text-xs text-muted-foreground">
           Add to home screen for quick access
         </p>
@@ -97,6 +100,8 @@ function AppInner() {
         return <WalletPage />;
       case "casino":
         return <CasinoPage />;
+      case "prediction":
+        return <PredictionPage />;
       case "promotions":
         return <PromotionsPage onOpenAuth={openAuth} />;
       case "leaderboard":

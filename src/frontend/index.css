@@ -198,6 +198,27 @@
     border-color: oklch(var(--purple));
   }
 
+  @keyframes wingo-glow {
+    0%, 100% {
+      box-shadow: 0 0 12px oklch(0.65 0.22 22 / 30%), 0 0 24px oklch(0.6 0.25 290 / 20%);
+      border-color: oklch(0.65 0.22 22 / 60%);
+    }
+    33% {
+      box-shadow: 0 0 16px oklch(0.6 0.25 290 / 40%), 0 0 32px oklch(0.6 0.25 290 / 20%);
+      border-color: oklch(0.6 0.25 290 / 70%);
+    }
+    66% {
+      box-shadow: 0 0 16px oklch(0.75 0.2 145 / 40%), 0 0 32px oklch(0.75 0.2 145 / 20%);
+      border-color: oklch(0.75 0.2 145 / 70%);
+    }
+  }
+
+  .wingo-card-glow {
+    animation: wingo-glow 3s ease-in-out infinite;
+    border-width: 1px;
+    border-style: solid;
+  }
+
   @keyframes wins-marquee {
     0% { transform: translateX(0); }
     100% { transform: translateX(-50%); }

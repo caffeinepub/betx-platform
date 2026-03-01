@@ -1,50 +1,55 @@
-# BetX Platform
+# RangBaazi - Color Prediction & Betting Platform
 
 ## Current State
-A full sports betting + casino platform with:
-- Sports betting (12 events, Football/Basketball/Tennis/Cricket)
-- Casino lobby with 8 games: Aviator, Slot Machine, Fishing, Mines, Roulette, Plinko, Coin Flip, Dice Roll
-- Wallet: basic Deposit/Withdrawal tabs with demo balance
-- Auth, Leaderboard, Admin, My Bets pages
-- Dark theme with electric green (neon) and gold accents
+A full-featured sports betting and casino platform (BetX) with:
+- Sports betting (Football, Basketball, Tennis, Cricket)
+- Casino games: Aviator, Slots, Fishing, Mines, Roulette, Plinko, Teen Patti, Andar Bahar, Baccarat, Dragon Tiger, Coin Flip, Dice Roll
+- Wallet with UPI, Bank, USDT, Bitcoin, P2P transfer
+- Admin panel (locked to Khanzyy@) with Payments, Website Settings tabs
+- Promotions page with referral system and daily bonus
+- PWA install banner, CSV downloads
+- VIP tier system, leaderboard
 
 ## Requested Changes (Diff)
 
 ### Add
-- **New Casino Games:**
-  - Teen Patti (Indian card game, 3 cards, Classic/Joker modes, Ante-based)
-  - Andar Bahar (Indian card game, pick Andar or Bahar, 1 card drawn each side)
-  - Baccarat (Player vs Banker, classic card game)
-  - Dragon Tiger (2-card battle — Dragon vs Tiger, Tie pays 8x)
-- **Payment Methods section in WalletPage:**
-  - Tab: "P2P Transfer" — send funds to another username on the platform
-  - Payment method selector on Deposit tab: USDT (TRC20), Bitcoin (BTC), UPI / PayTM, Bank Transfer (NEFT/IMPS), Netbanking
-  - Payment method selector on Withdrawal tab: same options above
-  - Each method shows fake wallet address / UPI ID / bank details for demo
-  - P2P Transfer: input username + amount, deducts from sender, adds to recipient (simulated)
-- **Unique visual template refresh:**
-  - Add a premium neon-purple accent color alongside existing neon-green and gold
-  - Casino page: add a scrolling ticker at top showing recent big wins across platform
-  - Add VIP badge system: Bronze/Silver/Gold/Platinum based on total bets placed
-  - Animated gradient border on active game card
+- **Color Prediction Game ("Win Go")** -- Core game of Tiranga-style platforms:
+  - 1-minute round timer countdown
+  - Bet on Red (2x), Green (2x), or Violet (4.5x)
+  - Numbers 0-9 displayed; 0 and 5 are Violet+Red/Green
+  - Round history table showing last 20 results with color indicators
+  - Multiple game modes: Win Go 1min, Win Go 3min, Win Go 5min (same game, different timer)
+  - Big/Small betting option (Big=5-9, Small=0-4) both pay 2x
+  - Number betting (0-9) pays 9x
+  - My Orders tab showing personal bet history per round
+- **Dedicated "Prediction" page** in navbar (primary feature)
+- **Platform renamed** to "RangBaazi" (logo, titles, storage keys, PWA name)
 
 ### Modify
-- **CasinoPage:** Add 4 new Indian card games to GAMES array with new category "Cards"
-- **WalletPage:** Add P2P Transfer as 3rd tab alongside Deposit/Withdraw; enhance payment method selection UI per tab
-- **BettingContext:** Add P2P transfer function `transferToUser(toUsername, amount): boolean`; add VIP tier computation to user
-- **CasinoPage categories:** Add "Cards" category tab for Indian card games
+- Navbar: add "Prediction" tab as first/featured nav item with special highlight
+- CasinoPage: add Win Go to the games list under a new "Prediction" category tab
+- BettingContext: add ColorPrediction state (rounds, bets, history), rename storage keys to rangbaazi_*
+- App.tsx: add "prediction" page route
+- All "BetX" / "BETX" text references changed to "RangBaazi" / "RANGBAAZI"
+- PWA banner: "Install RangBaazi App"
+- Admin page: update site name default to RangBaazi
+- Referral code prefix: RANG- instead of BETX-
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Add `transferToUser` to BettingContext and expose in context type
-2. Create `TeenPattiGame.tsx` in src/frontend/src/pages/games/
-3. Create `AndarBaharGame.tsx` in src/frontend/src/pages/games/
-4. Create `BaccaratGame.tsx` in src/frontend/src/pages/games/
-5. Create `DragonTigerGame.tsx` in src/frontend/src/pages/games/
-6. Update CasinoPage.tsx: import 4 new games, add to GAMES array, add "Cards" category
-7. Update WalletPage.tsx: add P2P Transfer tab, add payment method UI on deposit/withdraw tabs
-8. Update BettingContext.tsx: add transferToUser function, add VIP tier helper
-9. Add recent-wins ticker component to CasinoPage header
-10. Add VIP badge display in Navbar or user profile area
+1. Create `ColorPredictionGame.tsx` -- full Win Go game with timer, betting, history
+2. Create `PredictionPage.tsx` -- standalone page featuring Win Go game modes
+3. Update `BettingContext.tsx`:
+   - Add color prediction types, state, round management
+   - Rename storage keys to rangbaazi_*
+   - Change referral code prefix to RANG-
+   - Update DEFAULT_WEBSITE_SETTINGS siteName to RangBaazi
+4. Update `App.tsx`:
+   - Add "prediction" page case
+   - Rename PWA banner to RangBaazi
+5. Update `Navbar.tsx` -- add Prediction tab with featured styling
+6. Update `CasinoPage.tsx` -- add Prediction category with Win Go entry
+7. Update `AdminPage.tsx` -- update default site name references
+8. Update `index.html` -- title to RangBaazi

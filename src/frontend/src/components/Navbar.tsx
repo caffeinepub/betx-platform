@@ -47,12 +47,13 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
   const vipTier = user ? getVipTier(user.id) : null;
 
   const navLinks = [
-    { id: "home", label: "Sports", icon: "⚽" },
-    { id: "casino", label: "Casino", icon: "🎰" },
-    { id: "mybets", label: "My Bets", icon: "📋" },
-    { id: "wallet", label: "Wallet", icon: "💰" },
-    { id: "promotions", label: "Promotions", icon: "🎁" },
-    { id: "leaderboard", label: "Leaderboard", icon: "🏆" },
+    { id: "prediction", label: "Win Go", icon: "🎯", isLive: true },
+    { id: "home", label: "Sports", icon: "⚽", isLive: false },
+    { id: "casino", label: "Casino", icon: "🎰", isLive: false },
+    { id: "mybets", label: "My Bets", icon: "📋", isLive: false },
+    { id: "wallet", label: "Wallet", icon: "💰", isLive: false },
+    { id: "promotions", label: "Promotions", icon: "🎁", isLive: false },
+    { id: "leaderboard", label: "Leaderboard", icon: "🏆", isLive: false },
   ];
 
   const formatBalance = (balance: number) =>
@@ -67,8 +68,8 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
           className="flex items-center gap-1 font-display font-black text-xl tracking-tighter"
           onClick={() => setCurrentPage("home")}
         >
-          <span className="text-neon">BET</span>
-          <span className="text-foreground">X</span>
+          <span className="text-orange-400">RANG</span>
+          <span className="text-green-400">BAAZI</span>
           <span className="ml-1 text-[10px] font-body font-medium text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-sm">
             LIVE
           </span>
@@ -81,12 +82,19 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
               type="button"
               key={link.id}
               onClick={() => setCurrentPage(link.id)}
-              className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-sm ${
-                currentPage === link.id
-                  ? "text-neon bg-neon/10"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-sm flex items-center gap-1.5 ${
+                link.id === "prediction"
+                  ? currentPage === "prediction"
+                    ? "text-orange-400 bg-orange-400/10 font-bold"
+                    : "text-orange-400 hover:bg-orange-400/10 font-bold"
+                  : currentPage === link.id
+                    ? "text-neon bg-neon/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               }`}
             >
+              {link.isLive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse flex-shrink-0" />
+              )}
               {link.label}
             </button>
           ))}
@@ -252,13 +260,20 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
                   setMobileOpen(false);
                 }}
                 className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-sm text-left ${
-                  currentPage === link.id
-                    ? "text-neon bg-neon/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  link.id === "prediction"
+                    ? currentPage === "prediction"
+                      ? "text-orange-400 bg-orange-400/10 font-bold"
+                      : "text-orange-400 hover:bg-orange-400/10 font-bold"
+                    : currentPage === link.id
+                      ? "text-neon bg-neon/10"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
                 }`}
               >
                 <span>{link.icon}</span>
                 {link.label}
+                {link.isLive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse ml-auto" />
+                )}
               </button>
             ))}
             {user && (

@@ -121,7 +121,7 @@ export function PromotionsPage({ onOpenAuth }: PromotionsPageProps) {
   const [referralLoading, setReferralLoading] = useState(false);
 
   const myCode = user ? getReferralCode(user.id) : "";
-  const myLink = `https://betx.app/ref/${myCode}`;
+  const myLink = `https://rangbaazi.app/ref/${myCode}`;
   const today = new Date().toDateString();
   const alreadyClaimed = user ? dailyLoginClaimed[user.id] === today : false;
 
@@ -397,15 +397,15 @@ export function PromotionsPage({ onOpenAuth }: PromotionsPageProps) {
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-xl font-black text-neon">₹1,000</p>
+                  <p className="text-xl font-black text-neon">₹50</p>
                   <p className="text-[10px] text-muted-foreground">
-                    Free balance
+                    Welcome bonus
                   </p>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Get ₹1,000 free demo balance when you register. No deposit
-                needed. Start betting instantly.
+                Get ₹50 welcome bonus when you register. No deposit needed.
+                Start betting instantly.
               </p>
               <div className="mt-auto">
                 {user ? (
