@@ -1,0 +1,850 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Activity,
+  CheckCircle,
+  Database,
+  PlusCircle,
+  ShieldCheck,
+  TrendingUp,
+  Users,
+  Wallet,
+} from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import {
+  type EventStatus,
+  type Sport,
+  useBetting,
+} from "../context/BettingContext";
+
+type AdminTab = "overview" | "events" | "bets" | "transactions" | "users";
+
+export function AdminPage() {
+  const {
+    user,
+    users,
+    events,
+    bets,
+    transactions,
+    addEvent,
+    settleEvent,
+    seedDemoData,
+    updateUserBalance,
+    setCurrentPage,
+  } = useBetting();
+
+  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+  const [settleResult, setSettleResult] = useState<
+    Record<string, "Home" | "Draw" | "Away">
+  >({});
+
+  const [newEvent, setNewEvent] = useState({
+    sport: "Football" as Sport,
+    league: "",
+    homeTeam: "",
+    awayTeam: "",
+    homeFlag: "⚽",
+    awayFlag: "⚽",
+    startTime: "Today 20:00",
+    status: "Upcoming" as EventStatus,
+    oddsHome: "2.00",
+    oddsDraw: "3.40",
+    oddsAway: "3.00",
+  });
+
+  if (!user?.isAdmin) {
+    return (
+      <div className="max-w-[1600px] mx-auto px-4 lg:px-6 py-16 flex flex-col items-center justify-center gap-4">
+        <ShieldCheck className="w-12 h-12 text-muted-foreground" />
+        <div className="text-center">
+          <h2 className="font-display font-bold text-xl mb-2">
+            Admin Access Required
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Register with username "admin" to access this panel
+          </p>
+          <button
+            type="button"
+            onClick={() => setCurrentPage("home")}
+            className="mt-4 text-neon text-sm font-medium hover:underline"
+          >
+            ← Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const totalWagered = bets.reduce((sum, b) => sum + b.stake, 0);
+  const totalPayouts = bets
+    .filter((b) => b.status === "Won")
+    .reduce((sum, b) => sum + b.potentialWin, 0);
+  const profit = totalWagered - totalPayouts;
+  const liveEvents = events.filter((e) => e.status === "Live").length;
+
+  const fmt = (n: number) => `$${n.toFixed(2)}`;
+
+  const handleAddEvent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEvent.homeTeam || !newEvent.awayTeam || !newEvent.league) {
+      toast.error("Fill all required fields");
+      return;
+    }
+    addEvent({
+      sport: newEvent.sport,
+      league: newEvent.league,
+      homeTeam: newEvent.homeTeam,
+      awayTeam: newEvent.awayTeam,
+      homeFlag: newEvent.homeFlag,
+      awayFlag: newEvent.awayFlag,
+      startTime: newEvent.startTime,
+      status: newEvent.status,
+      odds: {
+        home: Number.parseFloat(newEvent.oddsHome) || 2,
+        draw: Number.parseFloat(newEvent.oddsDraw) || 3.4,
+        away: Number.parseFloat(newEvent.oddsAway) || 3,
+      },
+    });
+    toast.success("Event created!");
+    setNewEvent((p) => ({
+      ...p,
+      league: "",
+      homeTeam: "",
+      awayTeam: "",
+    }));
+  };
+
+  const handleSettle = (eventId: string) => {
+    const result = settleResult[eventId];
+    if (!result) {
+      toast.error("Select a result first");
+      return;
+    }
+    settleEvent(eventId, result);
+    toast.success("Event settled!");
+  };
+
+  const TABS: { id: AdminTab; label: string; icon: React.ElementType }[] = [
+    { id: "overview", label: "Overview", icon: Activity },
+    { id: "events", label: "Events", icon: TrendingUp },
+    { id: "bets", label: "Bets", icon: CheckCircle },
+    { id: "transactions", label: "Transactions", icon: Wallet },
+    { id: "users", label: "Users", icon: Users },
+  ];
+
+  return (
+    <div className="max-w-[1600px] mx-auto px-4 lg:px-6 py-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <ShieldCheck className="w-6 h-6 text-neon" />
+          <div>
+            <h1 className="font-display font-black text-2xl">Admin Panel</h1>
+            <p className="text-sm text-muted-foreground">
+              Platform management — logged in as {user.displayName}
+            </p>
+          </div>
+        </div>
+        <Button
+          onClick={() => {
+            seedDemoData();
+            toast.success("Demo events seeded!");
+          }}
+          variant="outline"
+          size="sm"
+          className="border-neon/50 text-neon hover:bg-neon/10 rounded-sm"
+        >
+          <Database className="w-4 h-4 mr-1.5" />
+          Seed Demo Data
+        </Button>
+      </div>
+
+      {/* Tab nav */}
+      <div className="flex gap-1 bg-secondary rounded-sm p-0.5 w-fit mb-6 overflow-x-auto">
+        {TABS.map((tab) => (
+          <button
+            type="button"
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-all whitespace-nowrap ${
+              activeTab === tab.id
+                ? "bg-background text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <tab.icon className="w-3.5 h-3.5" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Overview */}
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            {[
+              {
+                label: "Total Users",
+                value: users.length,
+                icon: Users,
+                color: "text-neon",
+              },
+              {
+                label: "Total Bets",
+                value: bets.length,
+                icon: TrendingUp,
+                color: "text-gold",
+              },
+              {
+                label: "Total Wagered",
+                value: fmt(totalWagered),
+                icon: Wallet,
+                color: "text-foreground",
+              },
+              {
+                label: "Platform Profit",
+                value: fmt(profit),
+                icon: TrendingUp,
+                color: profit >= 0 ? "text-win" : "text-loss",
+              },
+              {
+                label: "Live Events",
+                value: liveEvents,
+                icon: Activity,
+                color: "text-live",
+              },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="bg-card border border-border rounded-sm p-4"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                  <span className="text-xs text-muted-foreground">
+                    {stat.label}
+                  </span>
+                </div>
+                <p className={`font-display font-black text-xl ${stat.color}`}>
+                  {stat.value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-card border border-border rounded-sm p-4">
+              <h3 className="font-display font-bold mb-3">Recent Bets</h3>
+              <div className="space-y-2">
+                {bets.slice(0, 5).map((bet) => (
+                  <div
+                    key={bet.id}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <span className="text-muted-foreground truncate max-w-[200px]">
+                      {bet.eventName}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span>{fmt(bet.stake)}</span>
+                      <span
+                        className={`text-[11px] font-bold px-1.5 py-0.5 rounded-sm ${
+                          bet.status === "Won"
+                            ? "bg-win/10 text-win"
+                            : bet.status === "Lost"
+                              ? "bg-loss/10 text-loss"
+                              : "bg-gold/10 text-gold"
+                        }`}
+                      >
+                        {bet.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {bets.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No bets placed yet
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-sm p-4">
+              <h3 className="font-display font-bold mb-3">Event Status</h3>
+              <div className="space-y-2">
+                {(["Live", "Upcoming", "Finished"] as EventStatus[]).map(
+                  (status) => {
+                    const count = events.filter(
+                      (e) => e.status === status,
+                    ).length;
+                    return (
+                      <div
+                        key={status}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="text-sm text-muted-foreground">
+                          {status}
+                        </span>
+                        <span className="font-bold text-sm">{count}</span>
+                      </div>
+                    );
+                  },
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Events Management */}
+      {activeTab === "events" && (
+        <div className="space-y-6">
+          {/* Create event form */}
+          <div className="bg-card border border-border rounded-sm p-5">
+            <h2 className="font-display font-bold mb-4 flex items-center gap-2">
+              <PlusCircle className="w-4 h-4 text-neon" />
+              Create Event
+            </h2>
+            <form onSubmit={handleAddEvent}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                <div>
+                  <Label className="text-xs mb-1 block">Sport</Label>
+                  <Select
+                    value={newEvent.sport}
+                    onValueChange={(v) =>
+                      setNewEvent((p) => ({ ...p, sport: v as Sport }))
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-secondary border-border rounded-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border-border">
+                      {["Football", "Basketball", "Tennis", "Cricket"].map(
+                        (s) => (
+                          <SelectItem key={s} value={s} className="text-xs">
+                            {s}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">League</Label>
+                  <Input
+                    value={newEvent.league}
+                    onChange={(e) =>
+                      setNewEvent((p) => ({ ...p, league: e.target.value }))
+                    }
+                    placeholder="e.g. Premier League"
+                    className="h-8 text-xs bg-secondary border-border rounded-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Status</Label>
+                  <Select
+                    value={newEvent.status}
+                    onValueChange={(v) =>
+                      setNewEvent((p) => ({
+                        ...p,
+                        status: v as EventStatus,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-secondary border-border rounded-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border-border">
+                      {["Upcoming", "Live"].map((s) => (
+                        <SelectItem key={s} value={s} className="text-xs">
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Home Team</Label>
+                  <Input
+                    value={newEvent.homeTeam}
+                    onChange={(e) =>
+                      setNewEvent((p) => ({
+                        ...p,
+                        homeTeam: e.target.value,
+                      }))
+                    }
+                    placeholder="Home team name"
+                    className="h-8 text-xs bg-secondary border-border rounded-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Away Team</Label>
+                  <Input
+                    value={newEvent.awayTeam}
+                    onChange={(e) =>
+                      setNewEvent((p) => ({
+                        ...p,
+                        awayTeam: e.target.value,
+                      }))
+                    }
+                    placeholder="Away team name"
+                    className="h-8 text-xs bg-secondary border-border rounded-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Start Time</Label>
+                  <Input
+                    value={newEvent.startTime}
+                    onChange={(e) =>
+                      setNewEvent((p) => ({
+                        ...p,
+                        startTime: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. Today 20:00"
+                    className="h-8 text-xs bg-secondary border-border rounded-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Home Odds</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={newEvent.oddsHome}
+                    onChange={(e) =>
+                      setNewEvent((p) => ({
+                        ...p,
+                        oddsHome: e.target.value,
+                      }))
+                    }
+                    className="h-8 text-xs bg-secondary border-border rounded-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Draw Odds</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={newEvent.oddsDraw}
+                    onChange={(e) =>
+                      setNewEvent((p) => ({
+                        ...p,
+                        oddsDraw: e.target.value,
+                      }))
+                    }
+                    className="h-8 text-xs bg-secondary border-border rounded-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Away Odds</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={newEvent.oddsAway}
+                    onChange={(e) =>
+                      setNewEvent((p) => ({
+                        ...p,
+                        oddsAway: e.target.value,
+                      }))
+                    }
+                    className="h-8 text-xs bg-secondary border-border rounded-sm"
+                  />
+                </div>
+              </div>
+              <Button
+                type="submit"
+                size="sm"
+                className="bg-neon text-panel-dark hover:bg-neon/90 font-bold rounded-sm"
+              >
+                <PlusCircle className="w-4 h-4 mr-1.5" />
+                Create Event
+              </Button>
+            </form>
+          </div>
+
+          {/* Events list */}
+          <div className="bg-card border border-border rounded-sm overflow-hidden">
+            <div className="p-4 border-b border-border">
+              <h2 className="font-display font-bold">
+                All Events ({events.length})
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="text-xs text-muted-foreground">
+                      Event
+                    </TableHead>
+                    <TableHead className="text-xs text-muted-foreground">
+                      League
+                    </TableHead>
+                    <TableHead className="text-xs text-muted-foreground">
+                      Status
+                    </TableHead>
+                    <TableHead className="text-xs text-muted-foreground">
+                      Odds
+                    </TableHead>
+                    <TableHead className="text-xs text-muted-foreground">
+                      Settle
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {events.map((event) => (
+                    <TableRow key={event.id} className="border-border">
+                      <TableCell className="text-sm font-medium">
+                        {event.homeTeam} vs {event.awayTeam}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {event.league}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`text-[11px] font-bold px-1.5 py-0.5 rounded-sm ${
+                            event.status === "Live"
+                              ? "bg-live/10 text-live"
+                              : event.status === "Upcoming"
+                                ? "bg-gold/10 text-gold"
+                                : "bg-secondary text-muted-foreground"
+                          }`}
+                        >
+                          {event.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs text-gold font-bold">
+                        {event.odds.home} / {event.odds.draw} /{" "}
+                        {event.odds.away}
+                      </TableCell>
+                      <TableCell>
+                        {event.status !== "Finished" ? (
+                          <div className="flex items-center gap-1">
+                            <Select
+                              value={settleResult[event.id] ?? ""}
+                              onValueChange={(v) =>
+                                setSettleResult((p) => ({
+                                  ...p,
+                                  [event.id]: v as "Home" | "Draw" | "Away",
+                                }))
+                              }
+                            >
+                              <SelectTrigger className="h-7 w-24 text-xs bg-secondary border-border rounded-sm">
+                                <SelectValue placeholder="Result" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover border-border">
+                                <SelectItem value="Home" className="text-xs">
+                                  Home
+                                </SelectItem>
+                                <SelectItem value="Draw" className="text-xs">
+                                  Draw
+                                </SelectItem>
+                                <SelectItem value="Away" className="text-xs">
+                                  Away
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              size="sm"
+                              onClick={() => handleSettle(event.id)}
+                              className="h-7 text-xs bg-neon text-panel-dark hover:bg-neon/90 rounded-sm px-2"
+                            >
+                              Settle
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Finished
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bets Overview */}
+      {activeTab === "bets" && (
+        <div className="bg-card border border-border rounded-sm overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <h2 className="font-display font-bold">All Bets ({bets.length})</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-xs text-muted-foreground">
+                    Event
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground">
+                    Selection
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground text-right">
+                    Odds
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground text-right">
+                    Stake
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground text-right">
+                    Payout
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground">
+                    Status
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bets.map((bet) => (
+                  <TableRow key={bet.id} className="border-border">
+                    <TableCell className="text-sm max-w-[180px]">
+                      <span className="truncate block">{bet.eventName}</span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {bet.selectionName}
+                    </TableCell>
+                    <TableCell className="text-xs text-right text-gold font-bold">
+                      {bet.odds.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-xs text-right">
+                      {fmt(bet.stake)}
+                    </TableCell>
+                    <TableCell className="text-xs text-right text-neon font-bold">
+                      {fmt(bet.potentialWin)}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`text-[11px] font-bold px-1.5 py-0.5 rounded-sm ${
+                          bet.status === "Won"
+                            ? "bg-win/10 text-win"
+                            : bet.status === "Lost"
+                              ? "bg-loss/10 text-loss"
+                              : "bg-gold/10 text-gold"
+                        }`}
+                      >
+                        {bet.status}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {bets.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center text-muted-foreground text-sm py-8"
+                    >
+                      No bets placed yet
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {/* Transactions */}
+      {activeTab === "transactions" && (
+        <div className="bg-card border border-border rounded-sm overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <h2 className="font-display font-bold">
+              All Transactions ({transactions.length})
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-xs text-muted-foreground">
+                    Type
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground">
+                    Description
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground text-right">
+                    Amount
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground">
+                    Date
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transactions.map((tx) => (
+                  <TableRow key={tx.id} className="border-border">
+                    <TableCell className="text-xs font-medium">
+                      {tx.type}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[200px]">
+                      <span className="truncate block">{tx.description}</span>
+                    </TableCell>
+                    <TableCell
+                      className={`text-xs text-right font-bold ${
+                        tx.isCredit ? "text-win" : "text-loss"
+                      }`}
+                    >
+                      {tx.isCredit ? "+" : "-"}
+                      {fmt(tx.amount)}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-[11px] text-muted-foreground">
+                        {tx.status}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {new Date(tx.date).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {transactions.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="text-center text-muted-foreground text-sm py-8"
+                    >
+                      No transactions yet
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {/* Users */}
+      {activeTab === "users" && (
+        <div className="bg-card border border-border rounded-sm overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <h2 className="font-display font-bold">
+              All Users ({users.length})
+            </h2>
+          </div>
+          {users.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              No registered users yet
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="text-xs text-muted-foreground">
+                      User
+                    </TableHead>
+                    <TableHead className="text-xs text-muted-foreground">
+                      Username
+                    </TableHead>
+                    <TableHead className="text-xs text-muted-foreground text-right">
+                      Balance
+                    </TableHead>
+                    <TableHead className="text-xs text-muted-foreground">
+                      Role
+                    </TableHead>
+                    <TableHead className="text-xs text-muted-foreground">
+                      Adjust Balance
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((u) => (
+                    <UserRow
+                      key={u.id}
+                      user={u}
+                      onUpdateBalance={updateUserBalance}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UserRow({
+  user,
+  onUpdateBalance,
+}: {
+  user: {
+    id: string;
+    displayName: string;
+    username: string;
+    balance: number;
+    isAdmin: boolean;
+  };
+  onUpdateBalance: (userId: string, balance: number) => void;
+}) {
+  const [adjustAmount, setAdjustAmount] = useState("");
+  const fmt = (n: number) => `$${n.toFixed(2)}`;
+
+  const handleAdjust = () => {
+    const amount = Number.parseFloat(adjustAmount);
+    if (!amount) return;
+    onUpdateBalance(user.id, Math.max(0, user.balance + amount));
+    toast.success(`Balance adjusted by ${fmt(amount)}`);
+    setAdjustAmount("");
+  };
+
+  return (
+    <TableRow className="border-border">
+      <TableCell className="text-sm font-medium">{user.displayName}</TableCell>
+      <TableCell className="text-xs text-muted-foreground">
+        @{user.username}
+      </TableCell>
+      <TableCell className="text-sm text-right font-bold text-gold">
+        {fmt(user.balance)}
+      </TableCell>
+      <TableCell>
+        <span
+          className={`text-[11px] font-bold px-1.5 py-0.5 rounded-sm ${
+            user.isAdmin
+              ? "bg-neon/10 text-neon"
+              : "bg-secondary text-muted-foreground"
+          }`}
+        >
+          {user.isAdmin ? "Admin" : "User"}
+        </span>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          <Input
+            type="number"
+            placeholder="±amount"
+            value={adjustAmount}
+            onChange={(e) => setAdjustAmount(e.target.value)}
+            className="h-7 w-24 text-xs bg-secondary border-border rounded-sm"
+          />
+          <Button
+            size="sm"
+            onClick={handleAdjust}
+            className="h-7 text-xs bg-secondary border border-border hover:border-neon/50 rounded-sm px-2"
+          >
+            Apply
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}

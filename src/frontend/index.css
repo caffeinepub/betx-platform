@@ -1,0 +1,284 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ================================================================
+   FONT FACES — Self-hosted from /assets/fonts/
+   ================================================================ */
+
+@font-face {
+  font-family: "Mona Sans";
+  src: url("/assets/fonts/MonaSans[wdth,wght].woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Figtree";
+  src: url("/assets/fonts/Figtree[wght].woff2") format("woff2");
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ================================================================
+   BETX DESIGN TOKENS — Dark sports betting aesthetic
+   ================================================================ */
+
+@layer base {
+  :root {
+    --radius: 0.25rem;
+
+    /* Dark base palette */
+    --background: 0.1 0.008 264;
+    --foreground: 0.96 0.005 264;
+
+    --card: 0.13 0.01 264;
+    --card-foreground: 0.96 0.005 264;
+
+    --popover: 0.15 0.012 264;
+    --popover-foreground: 0.96 0.005 264;
+
+    /* Primary = electric green */
+    --primary: 0.82 0.2 155;
+    --primary-foreground: 0.08 0.01 155;
+
+    /* Secondary = dark panel */
+    --secondary: 0.18 0.015 264;
+    --secondary-foreground: 0.85 0.005 264;
+
+    /* Muted = subtle text areas */
+    --muted: 0.16 0.012 264;
+    --muted-foreground: 0.55 0.01 264;
+
+    /* Accent = gold/amber */
+    --accent: 0.78 0.18 68;
+    --accent-foreground: 0.1 0.01 68;
+
+    --destructive: 0.65 0.22 22;
+    --destructive-foreground: 0.98 0 0;
+
+    --border: 0.22 0.015 264;
+    --input: 0.18 0.012 264;
+    --ring: 0.82 0.2 155;
+
+    /* Chart colors */
+    --chart-1: 0.82 0.2 155;
+    --chart-2: 0.78 0.18 68;
+    --chart-3: 0.6 0.2 264;
+    --chart-4: 0.65 0.22 22;
+    --chart-5: 0.7 0.15 200;
+
+    /* Sidebar */
+    --sidebar: 0.11 0.008 264;
+    --sidebar-foreground: 0.96 0.005 264;
+    --sidebar-primary: 0.82 0.2 155;
+    --sidebar-primary-foreground: 0.08 0.01 155;
+    --sidebar-accent: 0.16 0.012 264;
+    --sidebar-accent-foreground: 0.85 0.005 264;
+    --sidebar-border: 0.22 0.015 264;
+    --sidebar-ring: 0.82 0.2 155;
+
+    /* Custom BetX tokens */
+    --neon-green: 0.88 0.23 155;
+    --gold: 0.82 0.2 68;
+    --win-green: 0.75 0.2 145;
+    --loss-red: 0.65 0.22 22;
+    --live-red: 0.7 0.25 25;
+    --panel-dark: 0.11 0.008 264;
+    --panel-mid: 0.15 0.012 264;
+    --purple: 0.65 0.25 290;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Figtree", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Mona Sans", sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* ================================================================
+   GLOBAL UTILITIES
+   ================================================================ */
+
+@layer utilities {
+  .text-neon {
+    color: oklch(var(--neon-green));
+  }
+
+  .text-gold {
+    color: oklch(var(--gold));
+  }
+
+  .text-win {
+    color: oklch(var(--win-green));
+  }
+
+  .text-loss {
+    color: oklch(var(--loss-red));
+  }
+
+  .bg-neon {
+    background-color: oklch(var(--neon-green));
+  }
+
+  .bg-gold {
+    background-color: oklch(var(--gold));
+  }
+
+  .bg-panel-dark {
+    background-color: oklch(var(--panel-dark));
+  }
+
+  .bg-panel-mid {
+    background-color: oklch(var(--panel-mid));
+  }
+
+  .border-neon {
+    border-color: oklch(var(--neon-green));
+  }
+
+  .border-gold {
+    border-color: oklch(var(--gold));
+  }
+
+  .text-purple {
+    color: oklch(var(--purple));
+  }
+
+  .bg-purple {
+    background-color: oklch(var(--purple));
+  }
+
+  .border-purple {
+    border-color: oklch(var(--purple));
+  }
+
+  .glow-neon {
+    box-shadow: 0 0 12px oklch(var(--neon-green) / 40%);
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 12px oklch(var(--gold) / 40%);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 12px oklch(var(--purple) / 40%);
+  }
+
+  @keyframes card-glow-pulse {
+    0%, 100% { box-shadow: 0 0 12px oklch(var(--purple) / 30%), 0 0 24px oklch(var(--purple) / 15%); }
+    50% { box-shadow: 0 0 20px oklch(var(--purple) / 50%), 0 0 40px oklch(var(--purple) / 25%); }
+  }
+
+  .active-game-card {
+    animation: card-glow-pulse 2s ease-in-out infinite;
+    border-color: oklch(var(--purple));
+  }
+
+  @keyframes wins-marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .wins-ticker {
+    animation: wins-marquee 35s linear infinite;
+  }
+
+  .wins-ticker:hover {
+    animation-play-state: paused;
+  }
+
+  .odds-badge {
+    @apply inline-flex items-center justify-center px-3 py-1 text-sm font-bold;
+    background-color: oklch(var(--secondary));
+    border: 1px solid oklch(var(--border));
+    color: oklch(var(--gold));
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+
+  .odds-badge:hover,
+  .odds-badge.selected {
+    background-color: oklch(var(--gold) / 20%);
+    border-color: oklch(var(--gold));
+    color: oklch(var(--gold));
+  }
+
+  .odds-badge.selected {
+    background-color: oklch(var(--gold) / 30%);
+  }
+
+  .live-dot {
+    @apply inline-block w-2 h-2 rounded-full;
+    background-color: oklch(var(--live-red));
+    animation: pulse-live 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse-live {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: scale(1.3);
+    }
+  }
+
+  @keyframes ticker-scroll {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
+  .ticker-track {
+    animation: ticker-scroll 30s linear infinite;
+  }
+
+  .ticker-track:hover {
+    animation-play-state: paused;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: oklch(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(var(--border));
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(var(--muted-foreground));
+  }
+}
