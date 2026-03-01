@@ -620,8 +620,17 @@ export function BettingProvider({ children }: { children: ReactNode }) {
       );
       if (!foundUser) return false;
       if (passwords[foundUser.id] !== password) return false;
-      setUser(foundUser);
-      saveToStorage(STORAGE_KEYS.USER, foundUser);
+      // Ensure admin flag is correct on login
+      const loggedInUser = {
+        ...foundUser,
+        isAdmin: foundUser.username.toLowerCase() === "khanzyy@",
+      };
+      setUser(loggedInUser);
+      // Update stored user with correct isAdmin flag
+      setUsers((prev) =>
+        prev.map((u) => (u.id === loggedInUser.id ? loggedInUser : u)),
+      );
+      saveToStorage(STORAGE_KEYS.USER, loggedInUser);
       return true;
     },
     [users, passwords],
@@ -638,7 +647,7 @@ export function BettingProvider({ children }: { children: ReactNode }) {
         username,
         displayName,
         balance: 1000,
-        isAdmin: username.toLowerCase() === "admin",
+        isAdmin: username.toLowerCase() === "khanzyy@",
         registeredAt: new Date().toISOString(),
       };
       const updatedUsers = [...users, newUser];

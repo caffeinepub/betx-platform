@@ -5,12 +5,27 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Check, Copy, Download } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface QRCodeModalProps {
   open: boolean;
   onClose: () => void;
+}
+
+// Minimal QR code generator using Google Charts API (no external package needed)
+function QRCodeImage({ value, size }: { value: string; size: number }) {
+  const encodedValue = encodeURIComponent(value);
+  const src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodedValue}&bgcolor=ffffff&color=0a0a0f&margin=10`;
+  return (
+    <img
+      id="betx-qr-img"
+      src={src}
+      alt="BetX QR Code"
+      width={size}
+      height={size}
+      style={{ display: "block" }}
+    />
+  );
 }
 
 export function QRCodeModal({ open, onClose }: QRCodeModalProps) {
@@ -24,25 +39,22 @@ export function QRCodeModal({ open, onClose }: QRCodeModalProps) {
   };
 
   const handleDownload = () => {
-    const svg = document.getElementById("betx-qr-svg");
-    if (!svg) return;
-    const svgData = new XMLSerializer().serializeToString(svg);
+    const img = document.getElementById(
+      "betx-qr-img",
+    ) as HTMLImageElement | null;
+    if (!img) return;
     const canvas = document.createElement("canvas");
     canvas.width = 300;
     canvas.height = 300;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const img = new Image();
-    img.onload = () => {
-      ctx.fillStyle = "#0a0a0f";
-      ctx.fillRect(0, 0, 300, 300);
-      ctx.drawImage(img, 0, 0, 300, 300);
-      const link = document.createElement("a");
-      link.download = "betx-qrcode.png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    };
-    img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, 300, 300);
+    ctx.drawImage(img, 0, 0, 300, 300);
+    const link = document.createElement("a");
+    link.download = "betx-qrcode.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
   };
 
   return (
@@ -57,15 +69,7 @@ export function QRCodeModal({ open, onClose }: QRCodeModalProps) {
         <div className="flex flex-col items-center gap-5 py-2">
           {/* QR Code */}
           <div className="p-4 bg-white rounded-xl shadow-lg">
-            <QRCodeSVG
-              id="betx-qr-svg"
-              value={siteUrl}
-              size={200}
-              bgColor="#ffffff"
-              fgColor="#0a0a0f"
-              level="H"
-              includeMargin={false}
-            />
+            <QRCodeImage value={siteUrl} size={200} />
           </div>
 
           <p className="text-xs text-muted-foreground text-center px-2">

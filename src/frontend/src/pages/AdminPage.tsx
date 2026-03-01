@@ -91,7 +91,8 @@ export function AdminPage() {
             Admin Access Required
           </h2>
           <p className="text-muted-foreground text-sm">
-            Register with username "admin" to access this panel
+            Only the admin account can access this panel. Please login with your
+            admin credentials.
           </p>
           <button
             type="button"
