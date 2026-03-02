@@ -71,6 +71,18 @@ export type TransactionType =
   | "P2P Send"
   | "P2P Receive";
 
+export interface WithdrawalRequest {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  amount: number;
+  method: string;
+  status: "Pending" | "Approved" | "Rejected";
+  date: string;
+  transactionId: string;
+}
+
 export type VipTier = "Bronze" | "Silver" | "Gold" | "Platinum";
 
 export interface Odds {
@@ -185,7 +197,7 @@ interface BettingContextType {
   // Wallet
   transactions: Transaction[];
   deposit: (amount: number) => void;
-  withdraw: (amount: number) => boolean;
+  withdraw: (amount: number, method?: string) => boolean;
   addTransaction: (
     type: TransactionType,
     amount: number,
@@ -193,6 +205,11 @@ interface BettingContextType {
     isCredit: boolean,
   ) => void;
   updateUserBalance: (userId: string, newBalance: number) => void;
+
+  // Withdrawal Approvals
+  withdrawalRequests: WithdrawalRequest[];
+  approveWithdrawal: (id: string) => void;
+  rejectWithdrawal: (id: string) => void;
 
   // Leaderboard
   leaderboard: LeaderboardEntry[];
@@ -548,6 +565,48 @@ const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
       ],
       note: "Login to your bank portal and transfer to the above account. Processing: 15–60 min.",
     },
+    {
+      id: "Stripe",
+      label: "Stripe",
+      icon: "💳",
+      active: true,
+      details: [
+        {
+          label: "Accepted Cards",
+          value: "Visa, Mastercard, Amex",
+          copyable: false,
+        },
+      ],
+      note: "Card payments powered by Stripe (demo mode)",
+    },
+    {
+      id: "PayPal",
+      label: "PayPal",
+      icon: "🅿️",
+      active: true,
+      details: [
+        {
+          label: "Supported",
+          value: "PayPal Balance, Bank Account, Card",
+          copyable: false,
+        },
+      ],
+      note: "PayPal checkout (demo mode)",
+    },
+    {
+      id: "Razorpay",
+      label: "Razorpay",
+      icon: "⚡",
+      active: true,
+      details: [
+        {
+          label: "Methods",
+          value: "UPI, Cards, Netbanking, Wallets",
+          copyable: false,
+        },
+      ],
+      note: "Razorpay checkout (demo mode)",
+    },
   ],
 };
 
@@ -621,6 +680,7 @@ const STORAGE_KEYS = {
   DAILY_LOGIN: "rangbaazi_daily_login",
   WEBSITE_SETTINGS: "rangbaazi_website_settings",
   GAME_SETTINGS: "rb_game_settings",
+  WITHDRAWAL_REQUESTS: "rangbaazi_withdrawal_requests",
 };
 
 // ================================================================
@@ -749,6 +809,9 @@ export function BettingProvider({ children }: { children: ReactNode }) {
   const [gameSettings, setGameSettings] = useState<GameSettings>(() =>
     loadFromStorage(STORAGE_KEYS.GAME_SETTINGS, DEFAULT_GAME_SETTINGS),
   );
+  const [withdrawalRequests, setWithdrawalRequests] = useState<
+    WithdrawalRequest[]
+  >(() => loadFromStorage(STORAGE_KEYS.WITHDRAWAL_REQUESTS, []));
 
   const updatePaymentSettings = useCallback((settings: PaymentSettings) => {
     setPaymentSettings(settings);
@@ -800,6 +863,9 @@ export function BettingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.DAILY_LOGIN, dailyLoginClaimed);
   }, [dailyLoginClaimed]);
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.WITHDRAWAL_REQUESTS, withdrawalRequests);
+  }, [withdrawalRequests]);
 
   // ---- AUTH ----
 
@@ -1098,18 +1164,125 @@ export function BettingProvider({ children }: { children: ReactNode }) {
   );
 
   const withdraw = useCallback(
-    (amount: number): boolean => {
+    (amount: number, method?: string): boolean => {
       if (!user || amount <= 0 || user.balance < amount) return false;
       const newBalance = user.balance - amount;
       const updatedUser = { ...user, balance: newBalance };
       setUser(updatedUser);
       saveToStorage(STORAGE_KEYS.USER, updatedUser);
       setUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
-      addTransaction("Withdrawal", amount, "Withdrawal request", false);
+      const txId = `tx-${Date.now()}`;
+      const tx: Transaction = {
+        id: txId,
+        type: "Withdrawal",
+        amount,
+        description: `Withdrawal via ${method ?? "Unknown"} — Pending Approval`,
+        date: new Date().toISOString(),
+        status: "Pending",
+        isCredit: false,
+      };
+      setTransactions((prev) => [tx, ...prev]);
+      // Create withdrawal request
+      const request: WithdrawalRequest = {
+        id: `wr-${Date.now()}`,
+        userId: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        amount,
+        method: method ?? "Unknown",
+        status: "Pending",
+        date: new Date().toISOString(),
+        transactionId: txId,
+      };
+      setWithdrawalRequests((prev) => [request, ...prev]);
       return true;
     },
-    [user, addTransaction],
+    [user],
   );
+
+  const approveWithdrawal = useCallback((id: string) => {
+    setWithdrawalRequests((prev) =>
+      prev.map((r) =>
+        r.id === id ? { ...r, status: "Approved" as const } : r,
+      ),
+    );
+    // Update matching transaction to Completed
+    setWithdrawalRequests((prev) => {
+      const req = prev.find((r) => r.id === id);
+      if (req) {
+        setTransactions((txPrev) =>
+          txPrev.map((tx) =>
+            tx.id === req.transactionId
+              ? {
+                  ...tx,
+                  status: "Completed" as const,
+                  description: tx.description.replace(
+                    " — Pending Approval",
+                    " — Approved",
+                  ),
+                }
+              : tx,
+          ),
+        );
+      }
+      return prev;
+    });
+  }, []);
+
+  const rejectWithdrawal = useCallback((id: string) => {
+    setWithdrawalRequests((prev) => {
+      const req = prev.find((r) => r.id === id);
+      if (!req || req.status !== "Pending") return prev;
+      // Refund balance to user
+      setUsers((usersPrev) =>
+        usersPrev.map((u) =>
+          u.id === req.userId ? { ...u, balance: u.balance + req.amount } : u,
+        ),
+      );
+      // If the rejected user is current user, update current user state too
+      setUser((currentUser) => {
+        if (currentUser && currentUser.id === req.userId) {
+          const updated = {
+            ...currentUser,
+            balance: currentUser.balance + req.amount,
+          };
+          saveToStorage(STORAGE_KEYS.USER, updated);
+          return updated;
+        }
+        return currentUser;
+      });
+      // Update transaction status to Cancelled
+      setTransactions((txPrev) => {
+        const refundTx: Transaction = {
+          id: `tx-${Date.now()}-refund`,
+          type: "Deposit",
+          amount: req.amount,
+          description: "Withdrawal refund — request rejected",
+          date: new Date().toISOString(),
+          status: "Completed",
+          isCredit: true,
+        };
+        return [
+          refundTx,
+          ...txPrev.map((tx) =>
+            tx.id === req.transactionId
+              ? {
+                  ...tx,
+                  status: "Failed" as const,
+                  description: tx.description.replace(
+                    " — Pending Approval",
+                    " — Rejected",
+                  ),
+                }
+              : tx,
+          ),
+        ];
+      });
+      return prev.map((r) =>
+        r.id === id ? { ...r, status: "Rejected" as const } : r,
+      );
+    });
+  }, []);
 
   const updateUserBalance = useCallback(
     (userId: string, newBalance: number) => {
@@ -1332,6 +1505,9 @@ export function BettingProvider({ children }: { children: ReactNode }) {
         withdraw,
         addTransaction,
         updateUserBalance,
+        withdrawalRequests,
+        approveWithdrawal,
+        rejectWithdrawal,
         leaderboard,
         transferToUser,
         getVipTier,

@@ -20,6 +20,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   Activity,
+  ArrowUpRight,
   CheckCircle,
   CreditCard,
   Database,
@@ -32,6 +33,7 @@ import {
   TrendingUp,
   Users,
   Wallet,
+  XCircle,
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
@@ -43,6 +45,7 @@ import {
   type PaymentSettings,
   type Sport,
   type WebsiteSettings,
+  type WithdrawalRequest,
   useBetting,
 } from "../context/BettingContext";
 
@@ -51,6 +54,7 @@ type AdminTab =
   | "events"
   | "bets"
   | "transactions"
+  | "withdrawals"
   | "users"
   | "payments"
   | "website"
@@ -74,6 +78,9 @@ export function AdminPage() {
     updateWebsiteSettings,
     gameSettings,
     updateGameSettings,
+    withdrawalRequests,
+    approveWithdrawal,
+    rejectWithdrawal,
   } = useBetting();
 
   // Always read fresh users from localStorage so admin sees all registered users
@@ -197,11 +204,26 @@ export function AdminPage() {
     toast.success("Event settled!");
   };
 
-  const TABS: { id: AdminTab; label: string; icon: React.ElementType }[] = [
+  const pendingWithdrawalCount = withdrawalRequests.filter(
+    (r) => r.status === "Pending",
+  ).length;
+
+  const TABS: {
+    id: AdminTab;
+    label: string;
+    icon: React.ElementType;
+    badge?: number;
+  }[] = [
     { id: "overview", label: "Overview", icon: Activity },
     { id: "events", label: "Events", icon: TrendingUp },
     { id: "bets", label: "Bets", icon: CheckCircle },
     { id: "transactions", label: "Transactions", icon: Wallet },
+    {
+      id: "withdrawals",
+      label: "Withdrawals",
+      icon: ArrowUpRight,
+      badge: pendingWithdrawalCount,
+    },
     { id: "users", label: "Users", icon: Users },
     { id: "payments", label: "Payments", icon: CreditCard },
     { id: "website", label: "Website", icon: Globe },
@@ -242,14 +264,20 @@ export function AdminPage() {
             type="button"
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-all whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-all whitespace-nowrap relative ${
               activeTab === tab.id
                 ? "bg-background text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
+            data-ocid={`admin.${tab.id}.tab`}
           >
             <tab.icon className="w-3.5 h-3.5" />
             {tab.label}
+            {tab.badge !== undefined && tab.badge > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-black rounded-full bg-loss text-white">
+                {tab.badge > 9 ? "9+" : tab.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -848,6 +876,15 @@ export function AdminPage() {
         </div>
       )}
 
+      {/* Withdrawal Approvals */}
+      {activeTab === "withdrawals" && (
+        <WithdrawalApprovalPanel
+          requests={withdrawalRequests}
+          onApprove={approveWithdrawal}
+          onReject={rejectWithdrawal}
+        />
+      )}
+
       {/* Payment Settings */}
       {activeTab === "payments" && (
         <PaymentSettingsPanel
@@ -871,6 +908,196 @@ export function AdminPage() {
           onSave={updateGameSettings}
         />
       )}
+    </div>
+  );
+}
+
+// ================================================================
+// WITHDRAWAL APPROVAL PANEL
+// ================================================================
+
+function WithdrawalApprovalPanel({
+  requests,
+  onApprove,
+  onReject,
+}: {
+  requests: WithdrawalRequest[];
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+}) {
+  const pendingCount = requests.filter((r) => r.status === "Pending").length;
+  const fmt = (n: number) =>
+    `₹${n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const statusBadge = (status: WithdrawalRequest["status"]) => {
+    const styles: Record<WithdrawalRequest["status"], string> = {
+      Pending: "bg-gold/10 text-gold border border-gold/30",
+      Approved: "bg-win/10 text-win border border-win/30",
+      Rejected: "bg-loss/10 text-loss border border-loss/30",
+    };
+    return (
+      <span
+        className={`text-[11px] font-bold px-1.5 py-0.5 rounded-sm ${styles[status]}`}
+      >
+        {status}
+      </span>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ArrowUpRight className="w-5 h-5 text-gold" />
+          <div>
+            <h2 className="font-display font-bold text-lg">
+              Withdrawal Requests
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Review and approve or reject user withdrawal requests
+            </p>
+          </div>
+        </div>
+        {pendingCount > 0 && (
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 rounded-sm border text-xs font-bold"
+            style={{
+              background: "oklch(0.65 0.22 40 / 10%)",
+              borderColor: "oklch(0.65 0.22 40 / 40%)",
+              color: "oklch(0.65 0.22 40)",
+            }}
+          >
+            <span className="animate-pulse w-2 h-2 rounded-full bg-current" />
+            {pendingCount} pending approval{pendingCount !== 1 ? "s" : ""}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-card border border-border rounded-sm overflow-hidden">
+        {requests.length === 0 ? (
+          <div
+            className="py-16 text-center"
+            data-ocid="admin.withdrawals.empty_state"
+          >
+            <ArrowUpRight className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-50" />
+            <p className="text-muted-foreground text-sm font-medium">
+              No withdrawal requests yet
+            </p>
+            <p className="text-muted-foreground text-xs mt-1">
+              Requests will appear here when users submit withdrawals
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-xs text-muted-foreground">
+                    User
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground text-right">
+                    Amount
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground">
+                    Method
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground">
+                    Date
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-xs text-muted-foreground">
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {requests.map((req, idx) => (
+                  <TableRow
+                    key={req.id}
+                    className="border-border"
+                    data-ocid={`admin.withdrawals.row.${idx + 1}`}
+                  >
+                    <TableCell>
+                      <div>
+                        <p className="text-sm font-medium">{req.displayName}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          @{req.username}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm font-bold text-right text-loss">
+                      {fmt(req.amount)}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {req.method}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {formatDate(req.date)}
+                    </TableCell>
+                    <TableCell>{statusBadge(req.status)}</TableCell>
+                    <TableCell>
+                      {req.status === "Pending" ? (
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              onApprove(req.id);
+                              toast.success(
+                                `Withdrawal of ${fmt(req.amount)} approved for @${req.username}`,
+                              );
+                            }}
+                            className="h-7 text-xs rounded-sm px-2 font-bold"
+                            style={{
+                              background: "oklch(0.55 0.18 145 / 20%)",
+                              border: "1px solid oklch(0.55 0.18 145 / 50%)",
+                              color: "oklch(0.7 0.18 145)",
+                            }}
+                            data-ocid={`admin.withdrawals.confirm_button.${idx + 1}`}
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              onReject(req.id);
+                              toast.success(
+                                `Withdrawal rejected — ₹${req.amount} refunded to @${req.username}`,
+                              );
+                            }}
+                            variant="outline"
+                            className="h-7 text-xs rounded-sm px-2 font-bold border-loss/40 text-loss hover:bg-loss/10"
+                            data-ocid={`admin.withdrawals.delete_button.${idx + 1}`}
+                          >
+                            <XCircle className="w-3 h-3 mr-1" />
+                            Reject
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">
+                          {req.status === "Approved"
+                            ? "Approved ✓"
+                            : "Rejected ✗"}
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

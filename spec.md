@@ -1,55 +1,53 @@
-# RangBaazi - Color Prediction & Betting Platform
+# RangBaazi
 
 ## Current State
-A full-featured sports betting and casino platform (BetX) with:
-- Sports betting (Football, Basketball, Tennis, Cricket)
-- Casino games: Aviator, Slots, Fishing, Mines, Roulette, Plinko, Teen Patti, Andar Bahar, Baccarat, Dragon Tiger, Coin Flip, Dice Roll
-- Wallet with UPI, Bank, USDT, Bitcoin, P2P transfer
-- Admin panel (locked to Khanzyy@) with Payments, Website Settings tabs
-- Promotions page with referral system and daily bonus
-- PWA install banner, CSV downloads
-- VIP tier system, leaderboard
+Full-stack sports betting and casino platform with:
+- Wallet page with Deposit/Withdraw/P2P tabs
+- Existing payment methods: UPI, USDT (TRC20), Bitcoin, Bank Transfer, Netbanking
+- Admin Panel with a "Payments" tab to configure payment methods
+- BettingContext with PaymentMethodConfig, PaymentSettings types
+- Deposit: 1-min timer, ₹100 min / ₹50,000 max, preset buttons
+- Withdrawal: basic form, no approval workflow
+- No Stripe/PayPal/Razorpay UI gateway screens
+- No withdrawal approval queue in Admin
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Color Prediction Game ("Win Go")** -- Core game of Tiranga-style platforms:
-  - 1-minute round timer countdown
-  - Bet on Red (2x), Green (2x), or Violet (4.5x)
-  - Numbers 0-9 displayed; 0 and 5 are Violet+Red/Green
-  - Round history table showing last 20 results with color indicators
-  - Multiple game modes: Win Go 1min, Win Go 3min, Win Go 5min (same game, different timer)
-  - Big/Small betting option (Big=5-9, Small=0-4) both pay 2x
-  - Number betting (0-9) pays 9x
-  - My Orders tab showing personal bet history per round
-- **Dedicated "Prediction" page** in navbar (primary feature)
-- **Platform renamed** to "RangBaazi" (logo, titles, storage keys, PWA name)
+- **Stripe gateway UI card** on Deposit tab: card number, expiry, CVV fields with realistic card-input styling, "Pay with Stripe" button (UI-only, no real API)
+- **PayPal gateway UI card** on Deposit tab: "Pay with PayPal" button that opens a PayPal-style modal with email + password fields (UI-only)
+- **Razorpay gateway UI card** on Deposit tab: shows Razorpay-branded payment sheet (UI-only) with UPI / Card / Netbanking sub-tabs
+- New payment gateway type identifiers in PaymentMethodConfig: `"Stripe"`, `"PayPal"`, `"Razorpay"` alongside existing `"UPI"`, `"USDT"`, `"Bitcoin"`, `"Bank"`, `"Netbanking"`
+- **Withdrawal approval queue** in Admin Panel > new "Withdrawals" tab:
+  - Table of all pending withdrawal requests (username, amount, method, date)
+  - Approve / Reject buttons per row
+  - Status badges: Pending / Approved / Rejected
+  - When approved: user balance deducted (already done at request time), status updated to Approved
+  - When rejected: balance refunded to user
+- `WithdrawalRequest` type added to BettingContext with fields: id, userId, username, amount, method, status, date
+- `withdrawalRequests` state array in BettingContext
+- `approveWithdrawal(id)` and `rejectWithdrawal(id)` actions in BettingContext
+- Update `withdraw()` action to create a WithdrawalRequest entry (status: "Pending") instead of immediately completing
+- Admin tab list updated to include "Withdrawals" tab with a count badge
 
 ### Modify
-- Navbar: add "Prediction" tab as first/featured nav item with special highlight
-- CasinoPage: add Win Go to the games list under a new "Prediction" category tab
-- BettingContext: add ColorPrediction state (rounds, bets, history), rename storage keys to rangbaazi_*
-- App.tsx: add "prediction" page route
-- All "BetX" / "BETX" text references changed to "RangBaazi" / "RANGBAAZI"
-- PWA banner: "Install RangBaazi App"
-- Admin page: update site name default to RangBaazi
-- Referral code prefix: RANG- instead of BETX-
+- **WalletPage Deposit tab**: existing payment methods remain; new gateways (Stripe, PayPal, Razorpay) shown as additional method buttons; clicking them shows the respective gateway UI below instead of the plain details card
+- **PaymentMethodSelector**: support rendering dedicated gateway UI components for Stripe, PayPal, Razorpay IDs
+- **AdminPage**: add "Withdrawals" tab (between Transactions and Users); show pending count badge on tab
+- **Admin > Payments tab**: add Stripe, PayPal, Razorpay as toggleable methods (enable/disable), with configuration fields (API key placeholder, webhook URL placeholder — display-only labels noting "UI demo only")
+- Transaction history: withdrawal transactions show status "Pending Approval" initially, updating to "Approved"/"Rejected" when admin acts
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Create `ColorPredictionGame.tsx` -- full Win Go game with timer, betting, history
-2. Create `PredictionPage.tsx` -- standalone page featuring Win Go game modes
-3. Update `BettingContext.tsx`:
-   - Add color prediction types, state, round management
-   - Rename storage keys to rangbaazi_*
-   - Change referral code prefix to RANG-
-   - Update DEFAULT_WEBSITE_SETTINGS siteName to RangBaazi
-4. Update `App.tsx`:
-   - Add "prediction" page case
-   - Rename PWA banner to RangBaazi
-5. Update `Navbar.tsx` -- add Prediction tab with featured styling
-6. Update `CasinoPage.tsx` -- add Prediction category with Win Go entry
-7. Update `AdminPage.tsx` -- update default site name references
-8. Update `index.html` -- title to RangBaazi
+1. Add `WithdrawalRequest` type and related state/actions to BettingContext
+2. Update `withdraw()` to create a pending WithdrawalRequest
+3. Add `approveWithdrawal` / `rejectWithdrawal` functions that update request status and refund on rejection
+4. Add default Stripe, PayPal, Razorpay entries to paymentSettings.methods in initial state
+5. Build `StripePaymentForm`, `PayPalModal`, `RazorpaySheet` UI sub-components in WalletPage
+6. Update `PaymentMethodSelector` to render dedicated UI for gateway types
+7. Add "Withdrawals" admin tab to AdminPage TABS array with pending count badge
+8. Build `WithdrawalsPanel` component in AdminPage showing the approval queue table
+9. Update Admin > Payments tab to show Stripe/PayPal/Razorpay as configurable gateway rows
+10. Validate, typecheck, and build

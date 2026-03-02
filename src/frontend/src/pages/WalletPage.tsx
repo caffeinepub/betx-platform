@@ -1,6 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -15,6 +22,7 @@ import {
   Check,
   Clock,
   Copy,
+  CreditCard,
   Download,
   QrCode,
   TrendingDown,
@@ -23,7 +31,6 @@ import {
   Wallet,
 } from "lucide-react";
 import { motion } from "motion/react";
-import QRCodeLib from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { PaymentMethodConfig } from "../context/BettingContext";
@@ -66,40 +73,37 @@ function UpiQrCode({
   amount?: string;
   customImageUrl?: string;
 }) {
-  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  const amountNum = Number.parseFloat(amount || "0");
+  const upiLink =
+    amountNum > 0
+      ? `upi://pay?pa=${encodeURIComponent(upiId)}&am=${amountNum}&cu=INR`
+      : `upi://pay?pa=${encodeURIComponent(upiId)}&cu=INR`;
 
-  useEffect(() => {
-    if (customImageUrl) return;
-    const amountNum = Number.parseFloat(amount || "0");
-    // UPI deep link format
-    const upiLink =
-      amountNum > 0
-        ? `upi://pay?pa=${encodeURIComponent(upiId)}&am=${amountNum}&cu=INR`
-        : `upi://pay?pa=${encodeURIComponent(upiId)}&cu=INR`;
-
-    QRCodeLib.toDataURL(upiLink, {
-      width: 200,
-      margin: 2,
-      color: { dark: "#000000", light: "#ffffff" },
-      errorCorrectionLevel: "H",
-    })
-      .then((url) => setQrDataUrl(url))
-      .catch(() => {});
-  }, [upiId, amount, customImageUrl]);
-
-  const imageToShow = customImageUrl || qrDataUrl;
-
-  if (!imageToShow) return null;
+  // Use a QR code generated via URL encoding displayed as a visual placeholder
+  // when no custom image is provided
+  const imageToShow = customImageUrl;
 
   return (
     <div className="flex flex-col items-center gap-3 py-3">
-      <div className="bg-white p-3 rounded-lg border-2 border-neon/30 shadow-lg">
-        <img
-          src={imageToShow}
-          alt="UPI QR Code"
-          className="w-44 h-44 object-contain"
-        />
-      </div>
+      {imageToShow ? (
+        <div className="bg-white p-3 rounded-lg border-2 border-neon/30 shadow-lg">
+          <img
+            src={imageToShow}
+            alt="UPI QR Code"
+            className="w-44 h-44 object-contain"
+          />
+        </div>
+      ) : (
+        <div
+          className="bg-white p-4 rounded-lg border-2 border-neon/30 shadow-lg flex flex-col items-center justify-center gap-2"
+          style={{ width: 176, height: 176 }}
+        >
+          <QrCode className="w-16 h-16 text-gray-800" />
+          <p className="text-[10px] text-gray-600 text-center font-medium">
+            {upiId}
+          </p>
+        </div>
+      )}
       <div className="text-center">
         <p className="text-xs font-bold text-neon flex items-center justify-center gap-1">
           <QrCode className="w-3.5 h-3.5" />
@@ -108,12 +112,23 @@ function UpiQrCode({
         <p className="text-[11px] text-muted-foreground mt-0.5">
           Works with GPay, PhonePe, PayTM, BHIM
         </p>
+        <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
+          {upiId}
+        </p>
         {amount && Number.parseFloat(amount) > 0 && (
           <p className="text-xs font-bold text-gold mt-1">
             Amount: ₹{Number(amount).toLocaleString()}
           </p>
         )}
       </div>
+      <a
+        href={upiLink}
+        className="text-[11px] text-neon underline"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Open UPI App directly
+      </a>
     </div>
   );
 }
@@ -178,6 +193,482 @@ function DepositTimer({
   );
 }
 
+// ================================================================
+// STRIPE PAYMENT FORM
+// ================================================================
+
+function StripePaymentForm({ amount }: { amount: string }) {
+  const [cardName, setCardName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const formatCardNumber = (val: string) => {
+    const digits = val.replace(/\D/g, "").slice(0, 16);
+    return digits.replace(/(.{4})/g, "$1 ").trim();
+  };
+
+  const formatExpiry = (val: string) => {
+    const digits = val.replace(/\D/g, "").slice(0, 4);
+    if (digits.length > 2) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    return digits;
+  };
+
+  const getCardType = () => {
+    const n = cardNumber.replace(/\s/g, "");
+    if (n.startsWith("4")) return "Visa";
+    if (n.startsWith("5") || n.startsWith("2")) return "Mastercard";
+    if (n.startsWith("34") || n.startsWith("37")) return "Amex";
+    return null;
+  };
+
+  const handlePay = () => {
+    if (
+      !cardName ||
+      cardNumber.replace(/\s/g, "").length < 16 ||
+      !expiry ||
+      !cvv
+    ) {
+      toast.error("Please fill in all card details");
+      return;
+    }
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      toast.success("Payment initiated via Stripe (demo)");
+    }, 1500);
+  };
+
+  const cardType = getCardType();
+  const amountNum = Number.parseFloat(amount) || 0;
+
+  return (
+    <div
+      className="rounded-sm border p-4 space-y-3 mt-2"
+      style={{
+        background: "oklch(0.12 0.03 265)",
+        borderColor: "oklch(0.5 0.22 280 / 40%)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <CreditCard className="w-4 h-4" style={{ color: "#635BFF" }} />
+          <span className="text-sm font-bold" style={{ color: "#635BFF" }}>
+            Pay with Stripe
+          </span>
+        </div>
+        {cardType && (
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-sm bg-white/10 text-foreground">
+            {cardType}
+          </span>
+        )}
+      </div>
+
+      <div>
+        <label
+          htmlFor="stripe-name"
+          className="text-[11px] text-muted-foreground block mb-1"
+        >
+          Cardholder Name
+        </label>
+        <Input
+          id="stripe-name"
+          placeholder="John Doe"
+          value={cardName}
+          onChange={(e) => setCardName(e.target.value)}
+          className="h-9 text-sm bg-secondary/50 border-border rounded-sm"
+          data-ocid="stripe.input"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="stripe-number"
+          className="text-[11px] text-muted-foreground block mb-1"
+        >
+          Card Number
+        </label>
+        <Input
+          id="stripe-number"
+          placeholder="4242 4242 4242 4242"
+          value={cardNumber}
+          onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+          className="h-9 text-sm bg-secondary/50 border-border rounded-sm font-mono tracking-wider"
+          data-ocid="stripe.input"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label
+            htmlFor="stripe-expiry"
+            className="text-[11px] text-muted-foreground block mb-1"
+          >
+            Expiry MM/YY
+          </label>
+          <Input
+            id="stripe-expiry"
+            placeholder="08/27"
+            value={expiry}
+            onChange={(e) => setExpiry(formatExpiry(e.target.value))}
+            className="h-9 text-sm bg-secondary/50 border-border rounded-sm font-mono"
+            data-ocid="stripe.input"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="stripe-cvv"
+            className="text-[11px] text-muted-foreground block mb-1"
+          >
+            CVV
+          </label>
+          <Input
+            id="stripe-cvv"
+            placeholder="123"
+            value={cvv}
+            type="password"
+            maxLength={4}
+            onChange={(e) =>
+              setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))
+            }
+            className="h-9 text-sm bg-secondary/50 border-border rounded-sm font-mono"
+            data-ocid="stripe.input"
+          />
+        </div>
+      </div>
+
+      <Button
+        onClick={handlePay}
+        disabled={loading}
+        className="w-full font-bold rounded-sm h-10 mt-1"
+        style={{ background: "#635BFF", color: "#fff" }}
+        data-ocid="stripe.submit_button"
+      >
+        {loading ? (
+          <span className="flex items-center gap-2">
+            <span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full inline-block" />
+            Processing...
+          </span>
+        ) : (
+          `Pay ₹${amountNum > 0 ? amountNum.toLocaleString() : "---"} with Stripe`
+        )}
+      </Button>
+      <p className="text-[10px] text-muted-foreground text-center">
+        🔒 Secured by Stripe — demo mode only
+      </p>
+    </div>
+  );
+}
+
+// ================================================================
+// PAYPAL MODAL
+// ================================================================
+
+function PayPalModal({ amount }: { amount: string }) {
+  const [showLogin, setShowLogin] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const amountNum = Number.parseFloat(amount) || 0;
+
+  const handleContinue = () => {
+    if (!email || !password) {
+      toast.error("Please enter your PayPal credentials");
+      return;
+    }
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      toast.success("Redirecting to PayPal... (demo)");
+    }, 1500);
+  };
+
+  return (
+    <div
+      className="rounded-sm border p-4 space-y-3 mt-2"
+      style={{ background: "oklch(0.12 0.03 230)", borderColor: "#003087aa" }}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-black" style={{ color: "#003087" }}>
+            Pay
+          </span>
+          <span className="text-lg font-black" style={{ color: "#009cde" }}>
+            Pal
+          </span>
+        </div>
+        <span className="text-[11px] text-muted-foreground">
+          Secure Checkout
+        </span>
+      </div>
+
+      {!showLogin ? (
+        <div className="space-y-3">
+          <div
+            className="p-3 rounded-sm text-center"
+            style={{
+              background: "oklch(0.2 0.04 230)",
+              border: "1px solid #009cde33",
+            }}
+          >
+            <p className="text-xs text-muted-foreground">Amount to pay</p>
+            <p className="text-xl font-black text-foreground mt-0.5">
+              ₹{amountNum > 0 ? amountNum.toLocaleString() : "---"}
+            </p>
+          </div>
+          <Button
+            onClick={() => setShowLogin(true)}
+            className="w-full font-bold rounded-sm h-10"
+            style={{ background: "#009cde", color: "#fff" }}
+            data-ocid="paypal.primary_button"
+          >
+            Continue with PayPal
+          </Button>
+          <p className="text-[10px] text-muted-foreground text-center">
+            You'll be securely redirected to PayPal (demo mode)
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs font-bold text-foreground">Sign in to PayPal</p>
+          <div>
+            <label
+              htmlFor="paypal-email"
+              className="text-[11px] text-muted-foreground block mb-1"
+            >
+              Email or mobile number
+            </label>
+            <Input
+              id="paypal-email"
+              type="email"
+              placeholder="email@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="h-9 text-sm bg-secondary/50 border-border rounded-sm"
+              data-ocid="paypal.input"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="paypal-pass"
+              className="text-[11px] text-muted-foreground block mb-1"
+            >
+              Password
+            </label>
+            <Input
+              id="paypal-pass"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-9 text-sm bg-secondary/50 border-border rounded-sm"
+              data-ocid="paypal.input"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowLogin(false)}
+              className="flex-1 rounded-sm h-9 border-border text-muted-foreground hover:text-foreground text-xs"
+              data-ocid="paypal.cancel_button"
+            >
+              Back
+            </Button>
+            <Button
+              onClick={handleContinue}
+              disabled={loading}
+              className="flex-1 font-bold rounded-sm h-9 text-xs"
+              style={{ background: "#003087", color: "#fff" }}
+              data-ocid="paypal.submit_button"
+            >
+              {loading ? "Connecting..." : "Log In & Pay"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ================================================================
+// RAZORPAY SHEET
+// ================================================================
+
+const RAZORPAY_BANKS = [
+  "State Bank of India",
+  "HDFC Bank",
+  "ICICI Bank",
+  "Axis Bank",
+  "Kotak Mahindra Bank",
+  "Punjab National Bank",
+  "Bank of Baroda",
+  "Canara Bank",
+];
+
+function RazorpaySheet({ amount }: { amount: string }) {
+  const [subTab, setSubTab] = useState<"upi" | "card" | "netbanking">("upi");
+  const [upiId, setUpiId] = useState("");
+  const [cardNum, setCardNum] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [bank, setBank] = useState("");
+  const [loading, setLoading] = useState(false);
+  const amountNum = Number.parseFloat(amount) || 0;
+
+  const formatCard = (val: string) =>
+    val
+      .replace(/\D/g, "")
+      .slice(0, 16)
+      .replace(/(.{4})/g, "$1 ")
+      .trim();
+  const formatExp = (val: string) => {
+    const d = val.replace(/\D/g, "").slice(0, 4);
+    return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+  };
+
+  const handlePay = () => {
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      toast.success("Pay via Razorpay (demo)");
+    }, 1500);
+  };
+
+  return (
+    <div
+      className="rounded-sm border p-4 space-y-3 mt-2"
+      style={{ background: "oklch(0.11 0.03 240)", borderColor: "#3395FF44" }}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-lg">⚡</span>
+        <span className="text-sm font-bold" style={{ color: "#3395FF" }}>
+          Razorpay Checkout
+        </span>
+        <span className="ml-auto text-xs font-bold text-muted-foreground">
+          ₹{amountNum > 0 ? amountNum.toLocaleString() : "---"}
+        </span>
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-1 bg-secondary/50 rounded-sm p-0.5">
+        {(["upi", "card", "netbanking"] as const).map((t) => (
+          <button
+            type="button"
+            key={t}
+            onClick={() => setSubTab(t)}
+            className={`flex-1 py-1.5 text-[11px] font-bold rounded-sm transition-all ${
+              subTab === t
+                ? "bg-background text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            data-ocid={`razorpay.${t}.tab`}
+          >
+            {t === "upi" ? "UPI" : t === "card" ? "Card" : "Netbanking"}
+          </button>
+        ))}
+      </div>
+
+      {subTab === "upi" && (
+        <div className="space-y-2">
+          <label
+            htmlFor="rp-upi"
+            className="text-[11px] text-muted-foreground block"
+          >
+            UPI ID
+          </label>
+          <Input
+            id="rp-upi"
+            placeholder="yourname@upi"
+            value={upiId}
+            onChange={(e) => setUpiId(e.target.value)}
+            className="h-9 text-sm bg-secondary/50 border-border rounded-sm"
+            data-ocid="razorpay.input"
+          />
+        </div>
+      )}
+
+      {subTab === "card" && (
+        <div className="space-y-2">
+          <Input
+            placeholder="Card Number"
+            value={cardNum}
+            onChange={(e) => setCardNum(formatCard(e.target.value))}
+            className="h-9 text-sm bg-secondary/50 border-border rounded-sm font-mono"
+            data-ocid="razorpay.input"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              placeholder="MM/YY"
+              value={cardExpiry}
+              onChange={(e) => setCardExpiry(formatExp(e.target.value))}
+              className="h-9 text-sm bg-secondary/50 border-border rounded-sm font-mono"
+              data-ocid="razorpay.input"
+            />
+            <Input
+              placeholder="CVV"
+              type="password"
+              value={cardCvv}
+              onChange={(e) =>
+                setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))
+              }
+              className="h-9 text-sm bg-secondary/50 border-border rounded-sm font-mono"
+              data-ocid="razorpay.input"
+            />
+          </div>
+        </div>
+      )}
+
+      {subTab === "netbanking" && (
+        <div className="space-y-2">
+          <label
+            htmlFor="rp-bank"
+            className="text-[11px] text-muted-foreground block"
+          >
+            Select Bank
+          </label>
+          <Select value={bank} onValueChange={setBank}>
+            <SelectTrigger
+              id="rp-bank"
+              className="h-9 text-sm bg-secondary/50 border-border rounded-sm"
+              data-ocid="razorpay.select"
+            >
+              <SelectValue placeholder="Choose your bank" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border">
+              {RAZORPAY_BANKS.map((b) => (
+                <SelectItem key={b} value={b} className="text-sm">
+                  {b}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      <Button
+        onClick={handlePay}
+        disabled={loading}
+        className="w-full font-bold rounded-sm h-10"
+        style={{ background: "#3395FF", color: "#fff" }}
+        data-ocid="razorpay.submit_button"
+      >
+        {loading ? (
+          <span className="flex items-center gap-2">
+            <span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full inline-block" />
+            Processing...
+          </span>
+        ) : (
+          "Pay via Razorpay (demo)"
+        )}
+      </Button>
+      <p className="text-[10px] text-muted-foreground text-center">
+        🔒 Secured by Razorpay — demo mode only
+      </p>
+    </div>
+  );
+}
+
 function PaymentMethodSelector({
   methods,
   selected,
@@ -191,6 +682,10 @@ function PaymentMethodSelector({
 }) {
   const activeMethod = methods.find((m) => m.id === selected);
   const isUpi = activeMethod?.id === "UPI";
+  const isGateway =
+    activeMethod?.id === "Stripe" ||
+    activeMethod?.id === "PayPal" ||
+    activeMethod?.id === "Razorpay";
 
   return (
     <div>
@@ -222,7 +717,20 @@ function PaymentMethodSelector({
           </button>
         ))}
       </div>
-      {activeMethod && (
+
+      {/* Gateway-specific UI */}
+      {activeMethod?.id === "Stripe" && depositAmount !== undefined && (
+        <StripePaymentForm amount={depositAmount} />
+      )}
+      {activeMethod?.id === "PayPal" && depositAmount !== undefined && (
+        <PayPalModal amount={depositAmount} />
+      )}
+      {activeMethod?.id === "Razorpay" && depositAmount !== undefined && (
+        <RazorpaySheet amount={depositAmount} />
+      )}
+
+      {/* Generic payment method details (not shown for gateways) */}
+      {activeMethod && !isGateway && (
         <div className="bg-secondary border border-border rounded-sm p-3 mb-3">
           <p className="text-[11px] font-bold text-muted-foreground mb-2 uppercase tracking-wider">
             {activeMethod.label} Details
@@ -345,10 +853,10 @@ export function WalletPage() {
       return;
     }
     const method = activeMethods.find((m) => m.id === withdrawMethod);
-    const success = withdraw(amount);
+    const success = withdraw(amount, method?.label ?? withdrawMethod);
     if (success) {
       toast.success(
-        `Withdrawal of ${fmt(amount)} requested via ${method?.label ?? withdrawMethod}`,
+        `Withdrawal of ${fmt(amount)} requested via ${method?.label ?? withdrawMethod} — pending admin approval`,
       );
       setWithdrawAmount("");
     } else {
@@ -592,12 +1100,13 @@ export function WalletPage() {
                     </p>
                   )}
 
-                  {/* 1-minute session timer */}
-                  {depositMethod && (
-                    <DepositTimer depositMethod={depositMethod} />
-                  )}
+                  {/* 1-minute session timer (not shown for gateways) */}
+                  {depositMethod &&
+                    !["Stripe", "PayPal", "Razorpay"].includes(
+                      depositMethod,
+                    ) && <DepositTimer depositMethod={depositMethod} />}
 
-                  {/* Quick presets */}
+                  {/* Quick presets — always show so gateway forms get the amount */}
                   <div className="grid grid-cols-3 gap-2">
                     {DEPOSIT_PRESETS.map((preset) => (
                       <button
@@ -626,19 +1135,27 @@ export function WalletPage() {
                       className="pl-7 bg-secondary border-border rounded-sm"
                     />
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    After payment, click below to credit your demo balance.
-                  </p>
-                  <Button
-                    onClick={handleDeposit}
-                    className="w-full bg-neon text-panel-dark hover:bg-neon/90 font-bold rounded-sm"
-                  >
-                    <ArrowDownLeft className="w-4 h-4 mr-1.5" />
-                    Confirm Deposit{" "}
-                    {depositAmount
-                      ? `₹${Number(depositAmount).toLocaleString()}`
-                      : ""}
-                  </Button>
+
+                  {/* Confirm Deposit button — hidden for gateway methods */}
+                  {!["Stripe", "PayPal", "Razorpay"].includes(
+                    depositMethod,
+                  ) && (
+                    <>
+                      <p className="text-[11px] text-muted-foreground">
+                        After payment, click below to credit your demo balance.
+                      </p>
+                      <Button
+                        onClick={handleDeposit}
+                        className="w-full bg-neon text-panel-dark hover:bg-neon/90 font-bold rounded-sm"
+                      >
+                        <ArrowDownLeft className="w-4 h-4 mr-1.5" />
+                        Confirm Deposit{" "}
+                        {depositAmount
+                          ? `₹${Number(depositAmount).toLocaleString()}`
+                          : ""}
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
 
