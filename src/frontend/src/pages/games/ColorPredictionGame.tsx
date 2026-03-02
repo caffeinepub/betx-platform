@@ -370,7 +370,8 @@ interface GameModePanelProps {
 }
 
 function GameModePanel({ mode, isActive }: GameModePanelProps) {
-  const { user, addTransaction, updateUserBalance } = useBetting();
+  const { user, addTransaction, updateUserBalance, gameSettings } =
+    useBetting();
   const total = GAME_DURATIONS[mode];
   const { state, setState, settleRound } = useGameMode(mode);
 
@@ -407,8 +408,31 @@ function GameModePanel({ mode, isActive }: GameModePanelProps) {
     const interval = setInterval(() => {
       setState((prev) => {
         if (prev.timeLeft <= 1) {
-          // Round ends — generate result
-          const num = Math.floor(Math.random() * 10);
+          // Round ends — generate result (with optional admin-forced color)
+          const forcedResult = gameSettings?.wingo?.forcedResult;
+          let num = Math.floor(Math.random() * 10);
+          if (forcedResult && forcedResult !== "Random") {
+            // Pick a random number that matches the forced color
+            const forcedLower = forcedResult.toLowerCase() as BetColor;
+            const matchingNumbers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(
+              (n) => {
+                const c = getNumberColor(n);
+                if (forcedLower === "red")
+                  return c === "red" || c === "violet+red";
+                if (forcedLower === "green")
+                  return c === "green" || c === "violet+green";
+                if (forcedLower === "violet")
+                  return c === "violet+red" || c === "violet+green";
+                return false;
+              },
+            );
+            if (matchingNumbers.length > 0) {
+              num =
+                matchingNumbers[
+                  Math.floor(Math.random() * matchingNumbers.length)
+                ];
+            }
+          }
           const color = getNumberColor(num);
           const bigSmall = getResultBigSmall(num);
           const newRoundIndex = prev.roundIndex + 1;
@@ -457,6 +481,7 @@ function GameModePanel({ mode, isActive }: GameModePanelProps) {
     creditBalance,
     settleRound,
     setState,
+    gameSettings,
   ]);
 
   // Hide result flash after 3s
@@ -1111,6 +1136,21 @@ function GameModePanel({ mode, isActive }: GameModePanelProps) {
 
 export function ColorPredictionGame() {
   const [activeMode, setActiveMode] = useState<GameMode>("1min");
+  const { gameSettings } = useBetting();
+
+  if (gameSettings?.wingo?.enabled === false) {
+    return (
+      <div className="bg-card border border-border rounded-sm flex flex-col items-center justify-center py-20 gap-4">
+        <div className="text-4xl">🔒</div>
+        <h3 className="font-display font-bold text-lg">
+          Game Temporarily Unavailable
+        </h3>
+        <p className="text-muted-foreground text-sm text-center max-w-xs">
+          This game has been paused by the admin. Please check back later.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

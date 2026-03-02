@@ -134,8 +134,14 @@ const BET_OPTIONS: {
 ];
 
 export function BaccaratGame() {
-  const { user, withdraw, deposit, addTransaction, setCurrentPage } =
-    useBetting();
+  const {
+    user,
+    withdraw,
+    deposit,
+    addTransaction,
+    setCurrentPage,
+    gameSettings,
+  } = useBetting();
   const [betAmount, setBetAmount] = useState("10");
   const [betChoice, setBetChoice] = useState<BetChoice>("Player");
   const [playerHand, setPlayerHand] = useState<Card[]>([]);
@@ -266,6 +272,20 @@ export function BaccaratGame() {
       );
     }, 1000);
   };
+
+  if (gameSettings?.baccarat?.enabled === false) {
+    return (
+      <div className="bg-card border border-border rounded-sm flex flex-col items-center justify-center py-20 gap-4">
+        <div className="text-4xl">🔒</div>
+        <h3 className="font-display font-bold text-lg">
+          Game Temporarily Unavailable
+        </h3>
+        <p className="text-muted-foreground text-sm text-center max-w-xs">
+          This game has been paused by the admin. Please check back later.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-card border border-border rounded-sm overflow-hidden">

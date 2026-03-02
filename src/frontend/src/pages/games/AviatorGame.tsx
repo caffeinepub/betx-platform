@@ -29,8 +29,14 @@ function getMultiplierColor(mult: number) {
 }
 
 export function AviatorGame() {
-  const { user, deposit, withdraw, addTransaction, setCurrentPage } =
-    useBetting();
+  const {
+    user,
+    deposit,
+    withdraw,
+    addTransaction,
+    setCurrentPage,
+    gameSettings,
+  } = useBetting();
   const [betAmount, setBetAmount] = useState("10");
   const [phase, setPhase] = useState<GamePhase>("idle");
   const [multiplier, setMultiplier] = useState(1.0);
@@ -72,8 +78,12 @@ export function AviatorGame() {
     }
     addTransaction("Casino Loss", amount, "Aviator — Bet placed", false);
 
-    // Calculate crash point: weighted toward lower values
-    const crash = Math.max(1.1, Math.random() * Math.random() * 20 + 1);
+    // Calculate crash point: use forced value from admin or weighted random
+    const forced = gameSettings?.aviator?.forcedCrashPoint;
+    const crash =
+      forced && forced > 1
+        ? forced
+        : Math.max(1.1, Math.random() * Math.random() * 20 + 1);
     crashRef.current = crash;
     betRef.current = amount;
 
@@ -116,7 +126,7 @@ export function AviatorGame() {
         toast.error(`💥 Crashed at ${crashRef.current.toFixed(2)}x!`);
       }
     }, 50);
-  }, [user, betAmount, withdraw, addTransaction, clearTimer]);
+  }, [user, betAmount, withdraw, addTransaction, clearTimer, gameSettings]);
 
   const cashOut = useCallback(() => {
     if (phaseRef.current !== "flying") return;
@@ -157,6 +167,20 @@ export function AviatorGame() {
 
   const fmt = (n: number) => `$${n.toFixed(2)}`;
   const potentialWin = Number.parseFloat(betAmount || "0") * multiplier;
+
+  if (gameSettings?.aviator?.enabled === false) {
+    return (
+      <div className="bg-card border border-border rounded-sm flex flex-col items-center justify-center py-20 gap-4">
+        <div className="text-4xl">🔒</div>
+        <h3 className="font-display font-bold text-lg">
+          Game Temporarily Unavailable
+        </h3>
+        <p className="text-muted-foreground text-sm text-center max-w-xs">
+          This game has been paused by the admin. Please check back later.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-card border border-border rounded-sm overflow-hidden">

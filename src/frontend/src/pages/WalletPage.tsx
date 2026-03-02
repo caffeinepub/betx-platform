@@ -16,12 +16,14 @@ import {
   Clock,
   Copy,
   Download,
+  QrCode,
   TrendingDown,
   TrendingUp,
   Trophy,
   Wallet,
 } from "lucide-react";
 import { motion } from "motion/react";
+import QRCodeLib from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { PaymentMethodConfig } from "../context/BettingContext";
@@ -52,6 +54,67 @@ function CopyButton({ value }: { value: string }) {
         <Copy className="w-3.5 h-3.5" />
       )}
     </button>
+  );
+}
+
+function UpiQrCode({
+  upiId,
+  amount,
+  customImageUrl,
+}: {
+  upiId: string;
+  amount?: string;
+  customImageUrl?: string;
+}) {
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+
+  useEffect(() => {
+    if (customImageUrl) return;
+    const amountNum = Number.parseFloat(amount || "0");
+    // UPI deep link format
+    const upiLink =
+      amountNum > 0
+        ? `upi://pay?pa=${encodeURIComponent(upiId)}&am=${amountNum}&cu=INR`
+        : `upi://pay?pa=${encodeURIComponent(upiId)}&cu=INR`;
+
+    QRCodeLib.toDataURL(upiLink, {
+      width: 200,
+      margin: 2,
+      color: { dark: "#000000", light: "#ffffff" },
+      errorCorrectionLevel: "H",
+    })
+      .then((url) => setQrDataUrl(url))
+      .catch(() => {});
+  }, [upiId, amount, customImageUrl]);
+
+  const imageToShow = customImageUrl || qrDataUrl;
+
+  if (!imageToShow) return null;
+
+  return (
+    <div className="flex flex-col items-center gap-3 py-3">
+      <div className="bg-white p-3 rounded-lg border-2 border-neon/30 shadow-lg">
+        <img
+          src={imageToShow}
+          alt="UPI QR Code"
+          className="w-44 h-44 object-contain"
+        />
+      </div>
+      <div className="text-center">
+        <p className="text-xs font-bold text-neon flex items-center justify-center gap-1">
+          <QrCode className="w-3.5 h-3.5" />
+          Scan to Pay via UPI
+        </p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          Works with GPay, PhonePe, PayTM, BHIM
+        </p>
+        {amount && Number.parseFloat(amount) > 0 && (
+          <p className="text-xs font-bold text-gold mt-1">
+            Amount: ₹{Number(amount).toLocaleString()}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -119,12 +182,15 @@ function PaymentMethodSelector({
   methods,
   selected,
   onSelect,
+  depositAmount,
 }: {
   methods: PaymentMethodConfig[];
   selected: string;
   onSelect: (id: string) => void;
+  depositAmount?: string;
 }) {
   const activeMethod = methods.find((m) => m.id === selected);
+  const isUpi = activeMethod?.id === "UPI";
 
   return (
     <div>
@@ -161,6 +227,16 @@ function PaymentMethodSelector({
           <p className="text-[11px] font-bold text-muted-foreground mb-2 uppercase tracking-wider">
             {activeMethod.label} Details
           </p>
+
+          {/* UPI QR Code */}
+          {isUpi && (activeMethod.upiId || activeMethod.qrImageUrl) && (
+            <UpiQrCode
+              upiId={activeMethod.upiId || "upi@paytm"}
+              amount={depositAmount}
+              customImageUrl={activeMethod.qrImageUrl}
+            />
+          )}
+
           <div className="space-y-1.5">
             {activeMethod.details.map((line) => (
               <div
@@ -508,6 +584,7 @@ export function WalletPage() {
                       methods={activeMethods}
                       selected={depositMethod}
                       onSelect={setDepositMethod}
+                      depositAmount={depositAmount}
                     />
                   ) : (
                     <p className="text-xs text-muted-foreground text-center py-4">

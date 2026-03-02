@@ -71,9 +71,7 @@ export function AuthModal({ open, onClose, initialMode }: AuthModalProps) {
     const success = register(displayName, username, password);
     setLoading(false);
     if (success) {
-      toast.success(
-        "Account created! You start with $1,000.00 demo balance 🎉",
-      );
+      toast.success("Account created! Welcome bonus of ₹50 added 🎉");
       onClose();
       setRegisterForm({
         displayName: "",
@@ -189,7 +187,7 @@ export function AuthModal({ open, onClose, initialMode }: AuthModalProps) {
                 {loading ? "Logging in..." : "Log In"}
               </Button>
               <p className="text-center text-xs text-muted-foreground">
-                Demo: register any account, starts with $1,000 balance
+                Register a new account to get started
               </p>
             </form>
           ) : (
@@ -290,7 +288,7 @@ export function AuthModal({ open, onClose, initialMode }: AuthModalProps) {
               </Button>
               <div className="p-3 bg-neon/5 border border-neon/20 rounded-sm">
                 <p className="text-xs text-neon font-medium">
-                  🎁 Start with $1,000.00 demo balance — no real money required
+                  🎁 Welcome bonus of ₹50 on registration
                 </p>
               </div>
             </form>

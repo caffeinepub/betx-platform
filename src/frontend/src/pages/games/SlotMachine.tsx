@@ -47,8 +47,14 @@ function calcPayout(reels: string[]): { mult: number; label: string } {
 const BET_PRESETS = [1, 5, 10, 25];
 
 export function SlotMachine() {
-  const { user, deposit, withdraw, addTransaction, setCurrentPage } =
-    useBetting();
+  const {
+    user,
+    deposit,
+    withdraw,
+    addTransaction,
+    setCurrentPage,
+    gameSettings,
+  } = useBetting();
 
   const [betAmount, setBetAmount] = useState("5");
   const [spinning, setSpinning] = useState(false);
@@ -162,6 +168,20 @@ export function SlotMachine() {
   }, [user, betAmount, withdraw, deposit, addTransaction]);
 
   const fmt = (n: number) => `$${n.toFixed(2)}`;
+
+  if (gameSettings?.slots?.enabled === false) {
+    return (
+      <div className="bg-card border border-border rounded-sm flex flex-col items-center justify-center py-20 gap-4">
+        <div className="text-4xl">🔒</div>
+        <h3 className="font-display font-bold text-lg">
+          Game Temporarily Unavailable
+        </h3>
+        <p className="text-muted-foreground text-sm text-center max-w-xs">
+          This game has been paused by the admin. Please check back later.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-card border border-border rounded-sm overflow-hidden">

@@ -23,8 +23,11 @@ import {
   CheckCircle,
   CreditCard,
   Database,
+  Gamepad2,
   Globe,
+  Image,
   PlusCircle,
+  QrCode,
   ShieldCheck,
   TrendingUp,
   Users,
@@ -35,6 +38,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
   type EventStatus,
+  type GameSettings,
   type PaymentMethodConfig,
   type PaymentSettings,
   type Sport,
@@ -49,12 +53,13 @@ type AdminTab =
   | "transactions"
   | "users"
   | "payments"
-  | "website";
+  | "website"
+  | "games";
 
 export function AdminPage() {
   const {
     user,
-    users,
+    users: ctxUsers,
     events,
     bets,
     transactions,
@@ -67,7 +72,38 @@ export function AdminPage() {
     updatePaymentSettings,
     websiteSettings,
     updateWebsiteSettings,
+    gameSettings,
+    updateGameSettings,
   } = useBetting();
+
+  // Always read fresh users from localStorage so admin sees all registered users
+  const [freshUsers, setFreshUsers] = useState<typeof ctxUsers>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("rangbaazi_users") || "[]");
+    } catch {
+      return ctxUsers;
+    }
+  });
+
+  // Merge context users with fresh localStorage users (union by id)
+  const users = (() => {
+    const map = new Map<string, (typeof ctxUsers)[0]>();
+    for (const u of freshUsers) map.set(u.id, u);
+    for (const u of ctxUsers) map.set(u.id, u);
+    return Array.from(map.values());
+  })();
+
+  const refreshUsers = () => {
+    try {
+      const stored = JSON.parse(
+        localStorage.getItem("rangbaazi_users") || "[]",
+      );
+      setFreshUsers(stored);
+      toast.success(`Users refreshed — ${stored.length} accounts found`);
+    } catch {
+      toast.error("Could not refresh users");
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [settleResult, setSettleResult] = useState<
@@ -169,6 +205,7 @@ export function AdminPage() {
     { id: "users", label: "Users", icon: Users },
     { id: "payments", label: "Payments", icon: CreditCard },
     { id: "website", label: "Website", icon: Globe },
+    { id: "games", label: "Games", icon: Gamepad2 },
   ];
 
   return (
@@ -756,10 +793,19 @@ export function AdminPage() {
       {/* Users */}
       {activeTab === "users" && (
         <div className="bg-card border border-border rounded-sm overflow-hidden">
-          <div className="p-4 border-b border-border">
+          <div className="p-4 border-b border-border flex items-center justify-between">
             <h2 className="font-display font-bold">
               All Users ({users.length})
             </h2>
+            <Button
+              onClick={refreshUsers}
+              variant="outline"
+              size="sm"
+              className="border-neon/40 text-neon hover:bg-neon/10 rounded-sm text-xs"
+            >
+              <Users className="w-3.5 h-3.5 mr-1.5" />
+              Refresh
+            </Button>
           </div>
           {users.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground text-sm">
@@ -815,6 +861,14 @@ export function AdminPage() {
         <WebsiteSettingsPanel
           websiteSettings={websiteSettings}
           onSave={updateWebsiteSettings}
+        />
+      )}
+
+      {/* Games Control */}
+      {activeTab === "games" && (
+        <GamesControlPanel
+          gameSettings={gameSettings}
+          onSave={updateGameSettings}
         />
       )}
     </div>
@@ -884,6 +938,238 @@ function UserRow({
         </div>
       </TableCell>
     </TableRow>
+  );
+}
+
+// ================================================================
+// GAMES CONTROL PANEL
+// ================================================================
+
+const GAME_EMOJIS: Record<string, string> = {
+  aviator: "✈️",
+  slots: "🎰",
+  fishing: "🎣",
+  mines: "💣",
+  roulette: "🎡",
+  plinko: "🎯",
+  wingo: "🎨",
+  teenPatti: "🃏",
+  andarBahar: "🀄",
+  baccarat: "🎴",
+  dragonTiger: "🐉",
+};
+
+function GamesControlPanel({
+  gameSettings,
+  onSave,
+}: {
+  gameSettings: GameSettings;
+  onSave: (settings: GameSettings) => void;
+}) {
+  const [local, setLocal] = useState<GameSettings>(() =>
+    JSON.parse(JSON.stringify(gameSettings)),
+  );
+
+  const updateGame = (
+    gameId: string,
+    field: string,
+    value: boolean | number | string | null,
+  ) => {
+    setLocal((prev) => ({
+      ...prev,
+      [gameId]: { ...prev[gameId], [field]: value },
+    }));
+  };
+
+  const handleSave = () => {
+    onSave(local);
+    toast.success("Game settings saved!");
+  };
+
+  const gameIds = Object.keys(local);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Gamepad2 className="w-5 h-5 text-neon" />
+          <div>
+            <h2 className="font-display font-bold text-lg">Games Control</h2>
+            <p className="text-xs text-muted-foreground">
+              Enable/disable games and configure house edge & forced results
+            </p>
+          </div>
+        </div>
+        <Button
+          onClick={handleSave}
+          data-ocid="admin.games.save_button"
+          className="bg-neon text-panel-dark hover:bg-neon/90 font-bold rounded-sm"
+        >
+          Save Settings
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {gameIds.map((gameId) => {
+          const game = local[gameId];
+          const emoji = GAME_EMOJIS[gameId] ?? "🎮";
+          return (
+            <div
+              key={gameId}
+              data-ocid="admin.games.card"
+              className={`bg-card border rounded-sm overflow-hidden transition-all ${
+                game.enabled ? "border-border" : "border-loss/40"
+              }`}
+            >
+              {/* Card header */}
+              <div
+                className={`flex items-center justify-between px-4 py-3 border-b ${
+                  game.enabled
+                    ? "border-border bg-secondary/20"
+                    : "border-loss/20 bg-loss/5"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{emoji}</span>
+                  <div>
+                    <p className="text-sm font-bold">{game.name}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                      {gameId}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!game.enabled && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-loss/15 text-loss border border-loss/30">
+                      Disabled
+                    </span>
+                  )}
+                  <Label
+                    htmlFor={`game-enabled-${gameId}`}
+                    className="text-xs text-muted-foreground sr-only"
+                  >
+                    {game.enabled ? "Enabled" : "Disabled"}
+                  </Label>
+                  <Switch
+                    id={`game-enabled-${gameId}`}
+                    data-ocid="admin.games.toggle"
+                    checked={game.enabled}
+                    onCheckedChange={(checked) =>
+                      updateGame(gameId, "enabled", checked)
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Card body */}
+              <div className="p-4 space-y-3">
+                {/* House Edge */}
+                <div className="flex items-center gap-3">
+                  <Label className="text-xs text-muted-foreground w-28 shrink-0">
+                    House Edge (%)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={50}
+                    step={0.5}
+                    value={game.houseEdge}
+                    onChange={(e) =>
+                      updateGame(
+                        gameId,
+                        "houseEdge",
+                        Math.min(
+                          50,
+                          Math.max(0, Number.parseFloat(e.target.value) || 0),
+                        ),
+                      )
+                    }
+                    data-ocid="admin.games.input"
+                    className="h-8 text-xs bg-secondary border-border rounded-sm w-24"
+                  />
+                  <span className="text-xs text-muted-foreground">(0–50%)</span>
+                </div>
+
+                {/* Win Go: Forced Result */}
+                {gameId === "wingo" && (
+                  <div className="flex items-center gap-3">
+                    <Label className="text-xs text-muted-foreground w-28 shrink-0">
+                      Force Next Result
+                    </Label>
+                    <Select
+                      value={game.forcedResult ?? "Random"}
+                      onValueChange={(v) =>
+                        updateGame(gameId, "forcedResult", v)
+                      }
+                    >
+                      <SelectTrigger
+                        data-ocid="admin.games.select"
+                        className="h-8 text-xs bg-secondary border-border rounded-sm w-32"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover border-border">
+                        <SelectItem value="Random" className="text-xs">
+                          🎲 Random
+                        </SelectItem>
+                        <SelectItem value="Red" className="text-xs">
+                          🔴 Red
+                        </SelectItem>
+                        <SelectItem value="Green" className="text-xs">
+                          🟢 Green
+                        </SelectItem>
+                        <SelectItem value="Violet" className="text-xs">
+                          🟣 Violet
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Aviator: Forced Crash Point */}
+                {gameId === "aviator" && (
+                  <div className="flex items-center gap-3">
+                    <Label className="text-xs text-muted-foreground w-28 shrink-0">
+                      Force Crash Point
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      value={game.forcedCrashPoint ?? 0}
+                      onChange={(e) => {
+                        const v = Number.parseFloat(e.target.value);
+                        updateGame(
+                          gameId,
+                          "forcedCrashPoint",
+                          Number.isNaN(v) || v <= 0 ? null : v,
+                        );
+                      }}
+                      data-ocid="admin.games.input"
+                      placeholder="Auto (0 = random)"
+                      className="h-8 text-xs bg-secondary border-border rounded-sm w-32"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      0 = auto
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex justify-end pt-2 border-t border-border">
+        <Button
+          onClick={handleSave}
+          data-ocid="admin.games.submit_button"
+          className="bg-neon text-panel-dark hover:bg-neon/90 font-bold rounded-sm"
+        >
+          Save All Game Settings
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -1315,6 +1601,52 @@ function PaymentSettingsPanel({
                   />
                 </div>
               </div>
+
+              {/* UPI-specific fields */}
+              {method.id === "UPI" && (
+                <div className="bg-neon/5 border border-neon/20 rounded-sm p-3 space-y-3">
+                  <p className="text-xs font-bold text-neon flex items-center gap-1.5">
+                    <QrCode className="w-3.5 h-3.5" />
+                    UPI QR Code Settings
+                  </p>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">
+                      UPI ID (auto-generates QR code)
+                    </Label>
+                    <Input
+                      value={method.upiId ?? ""}
+                      onChange={(e) =>
+                        updateMethod(methodIdx, "upiId", e.target.value)
+                      }
+                      className="h-8 text-xs bg-secondary border-border rounded-sm font-mono"
+                      placeholder="e.g. yourname@paytm"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Users will see a scannable QR code generated from this UPI
+                      ID
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block flex items-center gap-1">
+                      <Image className="w-3 h-3" />
+                      Custom QR Image URL (optional — overrides auto-generated
+                      QR)
+                    </Label>
+                    <Input
+                      value={method.qrImageUrl ?? ""}
+                      onChange={(e) =>
+                        updateMethod(methodIdx, "qrImageUrl", e.target.value)
+                      }
+                      className="h-8 text-xs bg-secondary border-border rounded-sm"
+                      placeholder="https://example.com/your-qr-code.png"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Paste a direct image link to your QR code screenshot.
+                      Leave empty to use auto-generated QR.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Detail lines */}
               <div>

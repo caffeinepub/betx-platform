@@ -27,10 +27,22 @@ export interface PaymentMethodConfig {
   active: boolean;
   details: PaymentMethodDetail[];
   note?: string;
+  qrImageUrl?: string; // optional custom QR image URL (for UPI)
+  upiId?: string; // UPI ID used to auto-generate QR code
 }
 export interface PaymentSettings {
   methods: PaymentMethodConfig[];
 }
+
+export interface GameConfig {
+  id: string;
+  name: string;
+  enabled: boolean;
+  houseEdge: number; // percentage 0-50
+  forcedResult?: string; // for Win Go: "Red" | "Green" | "Violet" | "Random"
+  forcedCrashPoint?: number | null; // for Aviator: null = auto
+}
+export type GameSettings = Record<string, GameConfig>;
 
 export interface WebsiteSettings {
   siteName: string;
@@ -207,6 +219,10 @@ interface BettingContextType {
   // Website Settings
   websiteSettings: WebsiteSettings;
   updateWebsiteSettings: (settings: WebsiteSettings) => void;
+
+  // Game Settings
+  gameSettings: GameSettings;
+  updateGameSettings: (settings: GameSettings) => void;
 
   // Navigation
   currentPage: string;
@@ -499,6 +515,7 @@ const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
       label: "UPI / PayTM",
       icon: "📲",
       active: true,
+      upiId: "betx@paytm",
       details: [
         { label: "UPI ID", value: "betx@paytm", copyable: true },
         { label: "PayTM", value: "9876543210", copyable: true },
@@ -552,6 +569,47 @@ const DEFAULT_WEBSITE_SETTINGS: WebsiteSettings = {
   maintenanceMode: false,
 };
 
+const DEFAULT_GAME_SETTINGS: GameSettings = {
+  aviator: {
+    id: "aviator",
+    name: "Aviator",
+    enabled: true,
+    houseEdge: 5,
+    forcedCrashPoint: null,
+  },
+  slots: { id: "slots", name: "Slot Machine", enabled: true, houseEdge: 5 },
+  fishing: { id: "fishing", name: "Fishing", enabled: true, houseEdge: 5 },
+  mines: { id: "mines", name: "Mines", enabled: true, houseEdge: 5 },
+  roulette: { id: "roulette", name: "Roulette", enabled: true, houseEdge: 5 },
+  plinko: { id: "plinko", name: "Plinko", enabled: true, houseEdge: 5 },
+  wingo: {
+    id: "wingo",
+    name: "Win Go",
+    enabled: true,
+    houseEdge: 5,
+    forcedResult: "Random",
+  },
+  teenPatti: {
+    id: "teenPatti",
+    name: "Teen Patti",
+    enabled: true,
+    houseEdge: 5,
+  },
+  andarBahar: {
+    id: "andarBahar",
+    name: "Andar Bahar",
+    enabled: true,
+    houseEdge: 5,
+  },
+  baccarat: { id: "baccarat", name: "Baccarat", enabled: true, houseEdge: 5 },
+  dragonTiger: {
+    id: "dragonTiger",
+    name: "Dragon Tiger",
+    enabled: true,
+    houseEdge: 5,
+  },
+};
+
 const STORAGE_KEYS = {
   USER: "rangbaazi_user",
   USERS: "rangbaazi_users",
@@ -562,6 +620,7 @@ const STORAGE_KEYS = {
   PAYMENT_SETTINGS: "rangbaazi_payment_settings",
   DAILY_LOGIN: "rangbaazi_daily_login",
   WEBSITE_SETTINGS: "rangbaazi_website_settings",
+  GAME_SETTINGS: "rb_game_settings",
 };
 
 // ================================================================
@@ -687,6 +746,9 @@ export function BettingProvider({ children }: { children: ReactNode }) {
   const [websiteSettings, setWebsiteSettings] = useState<WebsiteSettings>(() =>
     loadFromStorage(STORAGE_KEYS.WEBSITE_SETTINGS, DEFAULT_WEBSITE_SETTINGS),
   );
+  const [gameSettings, setGameSettings] = useState<GameSettings>(() =>
+    loadFromStorage(STORAGE_KEYS.GAME_SETTINGS, DEFAULT_GAME_SETTINGS),
+  );
 
   const updatePaymentSettings = useCallback((settings: PaymentSettings) => {
     setPaymentSettings(settings);
@@ -698,13 +760,23 @@ export function BettingProvider({ children }: { children: ReactNode }) {
     saveToStorage(STORAGE_KEYS.WEBSITE_SETTINGS, settings);
   }, []);
 
-  // Sync user balance from users array
+  const updateGameSettings = useCallback((settings: GameSettings) => {
+    setGameSettings(settings);
+    saveToStorage(STORAGE_KEYS.GAME_SETTINGS, settings);
+  }, []);
+
+  // Sync user balance from users array (preserve isAdmin flag)
   useEffect(() => {
     if (user) {
       const updatedUser = users.find((u) => u.id === user.id);
       if (updatedUser && updatedUser.balance !== user.balance) {
-        setUser(updatedUser);
-        saveToStorage(STORAGE_KEYS.USER, updatedUser);
+        // Preserve the isAdmin flag — never downgrade it via this sync
+        const merged = {
+          ...updatedUser,
+          isAdmin: updatedUser.isAdmin || user.isAdmin,
+        };
+        setUser(merged);
+        saveToStorage(STORAGE_KEYS.USER, merged);
       }
     }
   }, [users, user]);
@@ -735,34 +807,28 @@ export function BettingProvider({ children }: { children: ReactNode }) {
     const trimmedUsername = username.trim();
     const trimmedPassword = password.trim();
 
-    // ADMIN HARDCODED BYPASS -- always works regardless of localStorage state
+    // ADMIN HARDCODED BYPASS -- always works regardless of any state
     if (
       trimmedUsername.toLowerCase() === ADMIN_USERNAME.toLowerCase() &&
       trimmedPassword === ADMIN_PASSWORD
     ) {
-      // Re-ensure admin in storage, then load it
-      ensureAdminAccount();
-      const freshUsers: User[] = JSON.parse(
-        localStorage.getItem(STORAGE_KEYS.USERS) || "[]",
-      );
-      const adminUser =
-        freshUsers.find((u) => u.id === ADMIN_USER_ID) ||
-        ({
-          id: ADMIN_USER_ID,
-          username: ADMIN_USERNAME,
-          displayName: "Admin",
-          balance: 999999,
-          isAdmin: true,
-          registeredAt: new Date().toISOString(),
-        } as User);
-      const loggedInAdmin = { ...adminUser, isAdmin: true };
-      setUser(loggedInAdmin);
-      const updatedUsers = freshUsers.find((u) => u.id === ADMIN_USER_ID)
-        ? freshUsers.map((u) => (u.id === ADMIN_USER_ID ? loggedInAdmin : u))
-        : [loggedInAdmin, ...freshUsers];
-      setUsers(updatedUsers);
-      saveToStorage(STORAGE_KEYS.USER, loggedInAdmin);
-      saveToStorage(STORAGE_KEYS.USERS, updatedUsers);
+      const adminUser: User = {
+        id: ADMIN_USER_ID,
+        username: ADMIN_USERNAME,
+        displayName: "Admin",
+        balance: 999999,
+        isAdmin: true,
+        registeredAt: new Date().toISOString(),
+      };
+      // Use functional update to avoid stale closure on users state
+      setUsers((prev) => {
+        const without = prev.filter((u) => u.id !== ADMIN_USER_ID);
+        const updated = [adminUser, ...without];
+        saveToStorage(STORAGE_KEYS.USERS, updated);
+        return updated;
+      });
+      setUser(adminUser);
+      saveToStorage(STORAGE_KEYS.USER, adminUser);
       return true;
     }
 
@@ -1277,6 +1343,8 @@ export function BettingProvider({ children }: { children: ReactNode }) {
         getReferralCode,
         websiteSettings,
         updateWebsiteSettings,
+        gameSettings,
+        updateGameSettings,
         currentPage,
         setCurrentPage,
       }}
